@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAIProvider } from "@/lib/ai";
-import { buildContextualPrompt, buildIntroMessage } from "@/lib/ai/persona-engine";
+import { buildContextualPrompt } from "@/lib/ai/persona-engine";
 import { calculateEmotionScore, shouldTriggerContinuation } from "@/lib/utils";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
+import type { Database } from "@/types/database";
+
+type Persona = Database["public"]["Tables"]["personas"]["Row"];
+type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
+type Phrase = Database["public"]["Tables"]["persona_phrase_bank"]["Row"];
+type Memory = { memory_key: string; memory_value: string };
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,26 +27,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing personaSlug or message" }, { status: 400 });
     }
 
-    // Get persona
     const { data: persona, error: personaError } = await supabase
       .from("personas")
       .select("*")
       .eq("slug", personaSlug)
       .eq("is_active", true)
-      .single();
+      .single() as { data: Persona | null; error: unknown };
 
     if (personaError || !persona) {
       return NextResponse.json({ error: "Persona not found" }, { status: 404 });
     }
 
-    // Get or create conversation
     let convId = conversationId;
     if (!convId) {
       const { data: conv, error: convError } = await supabase
         .from("conversations")
         .insert({ user_id: user.id, persona_id: persona.id })
         .select()
-        .single();
+        .single() as { data: Conversation | null; error: unknown };
 
       if (convError || !conv) {
         return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
@@ -48,12 +52,11 @@ export async function POST(request: NextRequest) {
       convId = conv.id;
     }
 
-    // Get conversation history
     const { data: conversation } = await supabase
       .from("conversations")
       .select("*")
       .eq("id", convId)
-      .single();
+      .single() as { data: Conversation | null };
 
     const { data: messageHistory } = await supabase
       .from("messages")
@@ -62,27 +65,24 @@ export async function POST(request: NextRequest) {
       .order("created_at", { ascending: true })
       .limit(30);
 
-    // Get phrase bank
     const { data: phrases } = await supabase
       .from("persona_phrase_bank")
       .select("*")
       .eq("persona_id", persona.id)
-      .eq("is_active", true);
+      .eq("is_active", true) as { data: Phrase[] | null };
 
-    const signaturePhrases = phrases?.filter(p => p.phrase_type === "signature").map(p => p.phrase) || [];
-    const petNames = phrases?.filter(p => p.phrase_type === "pet_name").map(p => p.phrase) || [];
-    const teaserLines = phrases?.filter(p => p.phrase_type === "teaser").map(p => p.phrase) || [];
-    const introLines = phrases?.filter(p => p.phrase_type === "intro").map(p => p.phrase) || [];
-    const upsellPhrases = phrases?.filter(p => p.phrase_type === "upsell").map(p => p.phrase) || [];
+    const signaturePhrases = (phrases || []).filter(p => p.phrase_type === "signature").map(p => p.phrase);
+    const petNames = (phrases || []).filter(p => p.phrase_type === "pet_name").map(p => p.phrase);
+    const teaserLines = (phrases || []).filter(p => p.phrase_type === "teaser").map(p => p.phrase);
+    const introLines = (phrases || []).filter(p => p.phrase_type === "intro").map(p => p.phrase);
+    const upsellPhrases = (phrases || []).filter(p => p.phrase_type === "upsell").map(p => p.phrase);
 
-    // Get memories
     const { data: memories } = await supabase
       .from("persona_memories")
       .select("memory_key, memory_value")
       .eq("persona_id", persona.id)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id) as { data: Memory[] | null };
 
-    // Build persona context
     const personaCtx: PersonaContext = {
       personaId: persona.id,
       displayName: persona.display_name,
@@ -97,29 +97,23 @@ export async function POST(request: NextRequest) {
       teaserLines,
       introLines,
       approvedUpsellPhrases: upsellPhrases,
-      memories: memories?.map(m => ({ key: m.memory_key, value: m.memory_value })) || [],
+      memories: (memories || []).map(m => ({ key: m.memory_key, value: m.memory_value })),
     };
 
-    // Build messages array
     const aiMessages: AIMessage[] = (messageHistory || []).map(m => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
-
-    // Add current user message
     aiMessages.push({ role: "user", content: message });
 
-    // Build system prompt
     const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
 
-    // Save user message
     await supabase.from("messages").insert({
       conversation_id: convId,
       role: "user",
       content: message,
     });
 
-    // Generate AI response
     const ai = getAIProvider("claude");
     const aiResponse = await ai.chat({
       messages: aiMessages,
@@ -128,19 +122,16 @@ export async function POST(request: NextRequest) {
       temperature: 0.85,
     });
 
-    // Save AI response
     await supabase.from("messages").insert({
       conversation_id: convId,
       role: "assistant",
       content: aiResponse,
     });
 
-    // Calculate emotion score
     const allMessages = [...aiMessages, { role: "assistant" as const, content: aiResponse }];
     const emotionScore = calculateEmotionScore(allMessages);
     const newMessageCount = (conversation?.message_count || 0) + 2;
 
-    // Check continuation trigger
     const lastContinuationAt = conversation?.last_continuation_at
       ? new Date(conversation.last_continuation_at)
       : null;
@@ -166,7 +157,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update conversation stats
     await supabase
       .from("conversations")
       .update({

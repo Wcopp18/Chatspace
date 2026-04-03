@@ -1,6 +1,11 @@
+export const dynamic = "force-dynamic";
+
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PRICING } from "@/lib/constants";
+import type { Database } from "@/types/database";
+
+type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -12,7 +17,7 @@ export default async function AccountPage() {
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
+    .single() as { data: Profile | null };
 
   return (
     <div className="min-h-screen bg-[#0D0D1A]">
