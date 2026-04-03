@@ -112,3 +112,9 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+@layer components {
+  .creator-input {
+    @apply w-full bg-[#0D0D1A] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-[#FF3CAC]/50 focus:ring-1 focus:ring-[#FF3CAC]/30 transition-all text-sm;
+  }
+}
