@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --background: 230 30% 6%;
+    --foreground: 0 0% 95%;
+    --card: 230 25% 11%;
+    --card-foreground: 0 0% 95%;
+    --popover: 230 25% 11%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 320 100% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 230 20% 16%;
+    --secondary-foreground: 0 0% 85%;
+    --muted: 230 20% 14%;
+    --muted-foreground: 230 10% 55%;
+    --accent: 230 20% 16%;
+    --accent-foreground: 0 0% 85%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 230 20% 18%;
+    --input: 230 20% 14%;
+    --ring: 320 100% 62%;
+    --radius: 1rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply bg-[#0D0D1A] text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-[#0D0D1A] text-foreground font-sans;
+    overflow-x: hidden;
+  }
+
+  /* Mobile safe area support */
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-left { padding-left: env(safe-area-inset-left); }
+  .safe-right { padding-right: env(safe-area-inset-right); }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-white/10 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-white/20; }
+
+  /* Gradient text utility */
+  .gradient-text {
+    background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 50%, #2B86C5 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-bg {
+    background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 50%, #2B86C5 100%);
+  }
+
+  .gradient-border {
+    position: relative;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 50%, #2B86C5 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Glow effects */
+  .glow-pink {
+    box-shadow: 0 0 30px rgba(255, 60, 172, 0.25), 0 0 60px rgba(255, 60, 172, 0.1);
+  }
+  .glow-pink-sm {
+    box-shadow: 0 0 15px rgba(255, 60, 172, 0.2);
+  }
+
+  /* Chat bubble styles */
+  .bubble-user {
+    background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 100%);
+    border-radius: 18px 18px 4px 18px;
+  }
+  .bubble-persona {
+    background: #1E1E30;
+    border-radius: 18px 18px 18px 4px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Tap highlight removal */
+  button, a { -webkit-tap-highlight-color: transparent; }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
