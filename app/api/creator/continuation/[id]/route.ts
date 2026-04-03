@@ -8,8 +8,7 @@ async function verifyAdmin() {
   if (!user) return null;
   const { data: profile } = await supabase
     .from("profiles").select("is_admin").eq("id", user.id).single();
-  if (!profile?.is_admin) return null;
-  return user;
+  return profile?.is_admin ? user : null;
 }
 
 export async function PATCH(
@@ -24,52 +23,37 @@ export async function PATCH(
   const admin = createAdminClient();
 
   const { data, error } = await admin
-    .from("personas")
+    .from("continuation_prompts")
     .update({
-      display_name: body.display_name,
-      bio: body.bio,
-      warmth: body.warmth,
-      tease_level: body.tease_level,
-      texting_style: body.texting_style,
-      emoji_style: body.emoji_style,
-      sentence_length: body.sentence_length,
+      trigger_type: body.trigger_type,
+      continuation_line: body.continuation_line,
+      popup_cta: body.popup_cta,
+      price: body.price,
+      cooldown_minutes: body.cooldown_minutes,
       is_active: body.is_active,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ persona: data });
+  return NextResponse.json({ prompt: data });
 }
 
-export async function POST(
-  request: NextRequest,
+export async function DELETE(
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const user = await verifyAdmin();
   if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const formData = await request.formData();
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-
   const admin = createAdminClient();
-  const ext = file.name.split(".").pop();
-  const path = `personas/${id}/avatar.${ext}`;
-  const bytes = await file.arrayBuffer();
+  const { error } = await admin
+    .from("continuation_prompts")
+    .update({ is_active: false })
+    .eq("id", id);
 
-  const { error: uploadError } = await admin.storage
-    .from("avatars")
-    .upload(path, bytes, { contentType: file.type, upsert: true });
-
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
-
-  const { data: { publicUrl } } = admin.storage.from("avatars").getPublicUrl(path);
-
-  await admin.from("personas").update({ avatar_url: publicUrl }).eq("id", id);
-
-  return NextResponse.json({ url: publicUrl });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

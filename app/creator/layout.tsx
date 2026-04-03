@@ -8,6 +8,14 @@ export default async function CreatorLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.is_admin) redirect("/");
+
   return (
     <div className="min-h-screen bg-[#0D0D1A]">
       {/* Creator nav */}
@@ -18,7 +26,7 @@ export default async function CreatorLayout({ children }: { children: React.Reac
             <span className="text-white/20">/</span>
             <span className="gradient-text font-bold text-sm">Creator Panel</span>
           </div>
-          <span className="text-xs bg-[#FF3CAC]/20 text-[#FF3CAC] px-3 py-1 rounded-full font-medium">Creator</span>
+          <span className="text-xs bg-[#FF3CAC]/20 text-[#FF3CAC] px-3 py-1 rounded-full font-medium">Admin</span>
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-4 py-6">

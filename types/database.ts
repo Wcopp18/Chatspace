@@ -16,6 +16,7 @@ export interface Database {
           display_name: string | null;
           avatar_url: string | null;
           is_subscribed: boolean;
+          is_admin: boolean;
           subscription_expires_at: string | null;
           created_at: string;
           updated_at: string;
@@ -26,6 +27,7 @@ export interface Database {
           display_name?: string | null;
           avatar_url?: string | null;
           is_subscribed?: boolean;
+          is_admin?: boolean;
           subscription_expires_at?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -36,6 +38,7 @@ export interface Database {
           display_name?: string | null;
           avatar_url?: string | null;
           is_subscribed?: boolean;
+          is_admin?: boolean;
           subscription_expires_at?: string | null;
           updated_at?: string;
         };

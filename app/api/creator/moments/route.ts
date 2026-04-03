@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+async function verifyAdmin() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from("profiles").select("is_admin").eq("id", user.id).single();
+  return profile?.is_admin ? user : null;
+}
+
+export async function POST(request: NextRequest) {
+  const user = await verifyAdmin();
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await request.json();
+  const { persona_id, title, tease_copy, media_type, price, sidebar_delay_minutes } = body;
+
+  if (!persona_id || !title || !tease_copy || !media_type) {
+    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("moments")
+    .insert({
+      persona_id,
+      title,
+      tease_copy,
+      media_type,
+      price: price ?? (media_type === "video" ? 4.99 : 2.99),
+      sidebar_delay_minutes: sidebar_delay_minutes ?? 10,
+      lock_state: "locked",
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ moment: data });
+}

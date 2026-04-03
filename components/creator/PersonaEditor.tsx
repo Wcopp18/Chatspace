@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { Database } from "@/types/database";
@@ -25,11 +25,18 @@ const PLACEHOLDER_AVATARS: Record<string, string> = {
   aria: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop&crop=face",
 };
 
-export default function PersonaEditor({ persona, phrases, moments, continuationPrompts }: Props) {
+export default function PersonaEditor({ persona, phrases: initialPhrases, moments: initialMoments, continuationPrompts: initialPrompts }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(persona.avatar_url || PLACEHOLDER_AVATARS[persona.slug] || PLACEHOLDER_AVATARS["luna"]);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const [phrases, setPhrases] = useState<Phrase[]>(initialPhrases);
+  const [moments, setMoments] = useState<Moment[]>(initialMoments);
+  const [prompts, setPrompts] = useState<ContinuationPrompt[]>(initialPrompts);
 
   // Profile state
   const [displayName, setDisplayName] = useState(persona.display_name);
@@ -41,45 +48,38 @@ export default function PersonaEditor({ persona, phrases, moments, continuationP
   const [sentenceLength, setSentenceLength] = useState(persona.sentence_length);
   const [isActive, setIsActive] = useState(persona.is_active);
 
-  const avatarUrl = persona.avatar_url || PLACEHOLDER_AVATARS[persona.slug] || PLACEHOLDER_AVATARS["luna"];
-
   async function saveProfile() {
     setSaving(true);
     try {
       const res = await fetch(`/api/creator/personas/${persona.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: displayName,
-          bio,
-          warmth,
-          tease_level: teaseLevel,
-          texting_style: textingStyle,
-          emoji_style: emojiStyle,
-          sentence_length: sentenceLength,
-          is_active: isActive,
-        }),
+        body: JSON.stringify({ display_name: displayName, bio, warmth, tease_level: teaseLevel, texting_style: textingStyle, emoji_style: emojiStyle, sentence_length: sentenceLength, is_active: isActive }),
       });
-      if (res.ok) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-        router.refresh();
-      }
-    } finally {
-      setSaving(false);
-    }
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); router.refresh(); }
+    } finally { setSaving(false); }
+  }
+
+  async function uploadAvatar(file: File) {
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/creator/personas/${persona.id}`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.url) setAvatarUrl(data.url);
+    } finally { setUploadingAvatar(false); }
   }
 
   const TABS: { id: Tab; label: string; count?: number }[] = [
     { id: "profile", label: "Profile" },
-    { id: "phrases", label: "Phrases", count: phrases.length },
-    { id: "moments", label: "Moments", count: moments.length },
-    { id: "continuation", label: "Continuation", count: continuationPrompts.length },
+    { id: "phrases", label: "Phrases", count: phrases.filter(p => p.is_active).length },
+    { id: "moments", label: "Moments", count: moments.filter(m => m.is_active).length },
+    { id: "continuation", label: "Continuation", count: prompts.filter(p => p.is_active).length },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <a href="/creator" className="text-white/40 hover:text-white transition-colors text-sm">← All Girls</a>
         <span className="text-white/20">/</span>
@@ -92,50 +92,38 @@ export default function PersonaEditor({ persona, phrases, moments, continuationP
           <div className="w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-[#FF3CAC]/30">
             <Image src={avatarUrl} alt={persona.display_name} width={64} height={64} className="w-full h-full object-cover" unoptimized />
           </div>
-          <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#FF3CAC] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#ff5cc0] transition-colors">
-            <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-            </svg>
-            <input type="file" accept="image/*" className="hidden" onChange={() => {}} />
-          </label>
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="absolute -bottom-1 -right-1 w-6 h-6 bg-[#FF3CAC] rounded-full flex items-center justify-center hover:bg-[#ff5cc0] transition-colors disabled:opacity-60"
+          >
+            {uploadingAvatar ? <span className="text-white text-[8px]">…</span> : (
+              <svg width="12" height="12" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
+            )}
+          </button>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
         </div>
         <div>
           <p className="text-white font-bold text-lg">{persona.display_name}</p>
           <p className="text-white/40 text-sm">@{persona.slug}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <button
-              onClick={() => router.push(`/chat/${persona.slug}`)}
-              className="text-xs text-[#FF3CAC] hover:underline"
-            >
-              Preview as user →
-            </button>
-          </div>
+          <button onClick={() => router.push(`/chat/${persona.slug}`)} className="text-xs text-[#FF3CAC] hover:underline mt-1">
+            Preview as user →
+          </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-[#1E1E30] border border-white/8 rounded-xl p-1">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              tab === t.id
-                ? "gradient-bg text-white"
-                : "text-white/40 hover:text-white/70"
-            }`}
-          >
-            {t.label}
-            {t.count !== undefined && (
-              <span className={`ml-1 text-xs ${tab === t.id ? "text-white/70" : "text-white/25"}`}>
-                {t.count}
-              </span>
-            )}
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${tab === t.id ? "gradient-bg text-white" : "text-white/40 hover:text-white/70"}`}>
+            {t.label}{t.count !== undefined && <span className={`ml-1 ${tab === t.id ? "text-white/70" : "text-white/25"}`}>{t.count}</span>}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === "profile" && (
         <ProfileTab
           displayName={displayName} setDisplayName={setDisplayName}
@@ -149,25 +137,15 @@ export default function PersonaEditor({ persona, phrases, moments, continuationP
           onSave={saveProfile} saving={saving} saved={saved}
         />
       )}
-      {tab === "phrases" && <PhrasesTab phrases={phrases} personaId={persona.id} />}
-      {tab === "moments" && <MomentsTab moments={moments} personaId={persona.id} />}
-      {tab === "continuation" && <ContinuationTab prompts={continuationPrompts} personaId={persona.id} personaName={persona.display_name} />}
+      {tab === "phrases" && <PhrasesTab phrases={phrases} setPhrases={setPhrases} personaId={persona.id} />}
+      {tab === "moments" && <MomentsTab moments={moments} setMoments={setMoments} personaId={persona.id} />}
+      {tab === "continuation" && <ContinuationTab prompts={prompts} setPrompts={setPrompts} personaId={persona.id} personaName={persona.display_name} />}
     </div>
   );
 }
 
 // ── Profile Tab ──────────────────────────────────────────────
-function ProfileTab({
-  displayName, setDisplayName,
-  bio, setBio,
-  warmth, setWarmth,
-  teaseLevel, setTeaseLevel,
-  textingStyle, setTextingStyle,
-  emojiStyle, setEmojiStyle,
-  sentenceLength, setSentenceLength,
-  isActive, setIsActive,
-  onSave, saving, saved,
-}: {
+function ProfileTab({ displayName, setDisplayName, bio, setBio, warmth, setWarmth, teaseLevel, setTeaseLevel, textingStyle, setTextingStyle, emojiStyle, setEmojiStyle, sentenceLength, setSentenceLength, isActive, setIsActive, onSave, saving, saved }: {
   displayName: string; setDisplayName: (v: string) => void;
   bio: string; setBio: (v: string) => void;
   warmth: number; setWarmth: (v: number) => void;
@@ -181,31 +159,15 @@ function ProfileTab({
   return (
     <div className="space-y-4">
       <Field label="Display Name">
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="creator-input"
-          placeholder="Luna"
-        />
+        <input value={displayName} onChange={e => setDisplayName(e.target.value)} className="creator-input" placeholder="Luna" />
       </Field>
-
       <Field label="Bio">
-        <textarea
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          rows={3}
-          className="creator-input resize-none"
-          placeholder="Who is she in her own words..."
-        />
+        <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} className="creator-input resize-none" placeholder="Who is she in her own words..." />
       </Field>
-
-      <SliderField label="Warmth" value={warmth} onChange={setWarmth} min={1} max={10}
-        left="Cool & guarded" right="Warm & open" />
-      <SliderField label="Tease Level" value={teaseLevel} onChange={setTeaseLevel} min={1} max={10}
-        left="Sweet & wholesome" right="Playfully flirty" />
-
+      <SliderField label="Warmth" value={warmth} onChange={setWarmth} min={1} max={10} left="Cool & guarded" right="Warm & open" />
+      <SliderField label="Tease Level" value={teaseLevel} onChange={setTeaseLevel} min={1} max={10} left="Sweet & wholesome" right="Playfully flirty" />
       <Field label="Texting Style">
-        <select value={textingStyle} onChange={(e) => setTextingStyle(e.target.value)} className="creator-input">
+        <select value={textingStyle} onChange={e => setTextingStyle(e.target.value)} className="creator-input">
           <option value="playful">Playful</option>
           <option value="flirty">Flirty</option>
           <option value="mysterious">Mysterious</option>
@@ -213,41 +175,30 @@ function ProfileTab({
           <option value="edgy">Edgy</option>
         </select>
       </Field>
-
       <Field label="Emoji Usage">
-        <select value={emojiStyle} onChange={(e) => setEmojiStyle(e.target.value)} className="creator-input">
+        <select value={emojiStyle} onChange={e => setEmojiStyle(e.target.value)} className="creator-input">
           <option value="heavy">Heavy (every message)</option>
           <option value="moderate">Moderate (every few)</option>
           <option value="none">Minimal</option>
         </select>
       </Field>
-
       <Field label="Message Length">
-        <select value={sentenceLength} onChange={(e) => setSentenceLength(e.target.value)} className="creator-input">
+        <select value={sentenceLength} onChange={e => setSentenceLength(e.target.value)} className="creator-input">
           <option value="short">Short (1–2 sentences)</option>
           <option value="medium">Medium (2–4 sentences)</option>
           <option value="long">Long (expressive)</option>
         </select>
       </Field>
-
       <div className="flex items-center justify-between bg-[#1E1E30] border border-white/8 rounded-xl px-4 py-3">
         <div>
           <p className="text-white text-sm font-medium">Visible to users</p>
-          <p className="text-white/40 text-xs mt-0.5">Show this girl on the selection screen</p>
+          <p className="text-white/40 text-xs mt-0.5">Show on selection screen</p>
         </div>
-        <button
-          onClick={() => setIsActive(!isActive)}
-          className={`w-12 h-6 rounded-full transition-colors relative ${isActive ? "bg-[#FF3CAC]" : "bg-white/20"}`}
-        >
+        <button onClick={() => setIsActive(!isActive)} className={`w-12 h-6 rounded-full transition-colors relative ${isActive ? "bg-[#FF3CAC]" : "bg-white/20"}`}>
           <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isActive ? "translate-x-7" : "translate-x-1"}`} />
         </button>
       </div>
-
-      <button
-        onClick={onSave}
-        disabled={saving}
-        className="w-full gradient-bg text-white font-semibold py-3.5 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60 glow-pink-sm"
-      >
+      <button onClick={onSave} disabled={saving} className="w-full gradient-bg text-white font-semibold py-3.5 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60 glow-pink-sm">
         {saved ? "✓ Saved" : saving ? "Saving…" : "Save Profile"}
       </button>
     </div>
@@ -255,12 +206,13 @@ function ProfileTab({
 }
 
 // ── Phrases Tab ──────────────────────────────────────────────
-function PhrasesTab({ phrases, personaId }: { phrases: Phrase[]; personaId: string }) {
-  const groups: Record<string, Phrase[]> = {};
-  phrases.forEach((p) => {
-    if (!groups[p.phrase_type]) groups[p.phrase_type] = [];
-    groups[p.phrase_type].push(p);
-  });
+function PhrasesTab({ phrases, setPhrases, personaId }: { phrases: Phrase[]; setPhrases: (p: Phrase[]) => void; personaId: string }) {
+  const [newType, setNewType] = useState("intro");
+  const [newPhrase, setNewPhrase] = useState("");
+  const [newWeight, setNewWeight] = useState(2);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
 
   const TYPE_LABELS: Record<string, string> = {
     intro: "Intro Lines",
@@ -270,26 +222,92 @@ function PhrasesTab({ phrases, personaId }: { phrases: Phrase[]; personaId: stri
     upsell: "Approved Upsell Phrases",
   };
 
+  async function addPhrase() {
+    if (!newPhrase.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/creator/phrases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_id: personaId, phrase_type: newType, phrase: newPhrase.trim(), weight: newWeight }),
+      });
+      const data = await res.json();
+      if (data.phrase) { setPhrases([...phrases, data.phrase]); setNewPhrase(""); }
+    } finally { setAdding(false); }
+  }
+
+  async function saveEdit(id: string) {
+    const res = await fetch(`/api/creator/phrases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phrase: editText }),
+    });
+    const data = await res.json();
+    if (data.phrase) { setPhrases(phrases.map(p => p.id === id ? data.phrase : p)); setEditingId(null); }
+  }
+
+  async function deletePhrase(id: string) {
+    await fetch(`/api/creator/phrases/${id}`, { method: "DELETE" });
+    setPhrases(phrases.map(p => p.id === id ? { ...p, is_active: false } : p));
+  }
+
+  const active = phrases.filter(p => p.is_active);
+  const groups: Record<string, Phrase[]> = {};
+  active.forEach(p => { if (!groups[p.phrase_type]) groups[p.phrase_type] = []; groups[p.phrase_type].push(p); });
+
   return (
     <div className="space-y-5">
-      <p className="text-white/40 text-sm">Creator-approved phrases only. The AI will not freestyle selling copy.</p>
+      {/* Add form */}
+      <div className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4 space-y-3">
+        <p className="text-white font-semibold text-sm">Add Phrase</p>
+        <select value={newType} onChange={e => setNewType(e.target.value)} className="creator-input">
+          {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <textarea value={newPhrase} onChange={e => setNewPhrase(e.target.value)} placeholder="Type the phrase..." rows={2} className="creator-input resize-none" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <label className="text-white/40 text-xs">Weight</label>
+            <input type="number" min={1} max={5} value={newWeight} onChange={e => setNewWeight(parseInt(e.target.value))} className="creator-input w-16 py-1.5" />
+          </div>
+          <button onClick={addPhrase} disabled={adding || !newPhrase.trim()} className="gradient-bg text-white text-sm font-semibold px-5 py-2 rounded-xl disabled:opacity-50">
+            {adding ? "Adding…" : "+ Add"}
+          </button>
+        </div>
+      </div>
+
+      {/* Grouped phrases */}
       {Object.entries(TYPE_LABELS).map(([type, label]) => (
         <div key={type} className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4">
-          <h3 className="text-white font-semibold text-sm mb-3">{label}</h3>
+          <h3 className="text-white font-semibold text-sm mb-3">{label} <span className="text-white/30 font-normal">({(groups[type] || []).length})</span></h3>
           <div className="space-y-2">
-            {(groups[type] || []).map((phrase) => (
+            {(groups[type] || []).map(phrase => (
               <div key={phrase.id} className="flex items-start gap-2 bg-[#252538] rounded-xl px-3 py-2.5">
-                <p className="text-white/80 text-sm flex-1 leading-snug">"{phrase.phrase}"</p>
-                <span className="text-white/20 text-xs mt-0.5">w:{phrase.weight}</span>
+                {editingId === phrase.id ? (
+                  <>
+                    <textarea value={editText} onChange={e => setEditText(e.target.value)} rows={2} className="flex-1 bg-transparent text-white/90 text-sm resize-none focus:outline-none" />
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => saveEdit(phrase.id)} className="text-green-400 text-xs hover:text-green-300">Save</button>
+                      <button onClick={() => setEditingId(null)} className="text-white/30 text-xs hover:text-white/50">Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-white/80 text-sm flex-1 leading-snug">"{phrase.phrase}"</p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-white/20 text-xs">w:{phrase.weight}</span>
+                      <button onClick={() => { setEditingId(phrase.id); setEditText(phrase.phrase); }} className="text-white/30 hover:text-white/70 transition-colors">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button onClick={() => deletePhrase(phrase.id)} className="text-red-400/50 hover:text-red-400 transition-colors">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
-            {(groups[type] || []).length === 0 && (
-              <p className="text-white/25 text-xs italic">No {label.toLowerCase()} yet</p>
-            )}
+            {(groups[type] || []).length === 0 && <p className="text-white/25 text-xs italic">No {label.toLowerCase()} yet</p>}
           </div>
-          <button className="mt-3 text-[#FF3CAC] text-xs font-medium hover:underline">
-            + Add phrase
-          </button>
         </div>
       ))}
     </div>
@@ -297,41 +315,154 @@ function PhrasesTab({ phrases, personaId }: { phrases: Phrase[]; personaId: stri
 }
 
 // ── Moments Tab ──────────────────────────────────────────────
-function MomentsTab({ moments, personaId }: { moments: Moment[]; personaId: string }) {
+function MomentsTab({ moments, setMoments, personaId }: { moments: Moment[]; setMoments: (m: Moment[]) => void; personaId: string }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newTease, setNewTease] = useState("");
+  const [newType, setNewType] = useState("image");
+  const [newPrice, setNewPrice] = useState(2.99);
+  const [newDelay, setNewDelay] = useState(10);
+  const [adding, setAdding] = useState(false);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadId, setActiveUploadId] = useState<string | null>(null);
+  const [activeUploadType, setActiveUploadType] = useState<"media" | "thumbnail">("media");
+
+  const active = moments.filter(m => m.is_active);
+
+  async function addMoment() {
+    if (!newTitle.trim() || !newTease.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/creator/moments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_id: personaId, title: newTitle, tease_copy: newTease, media_type: newType, price: newPrice, sidebar_delay_minutes: newDelay }),
+      });
+      const data = await res.json();
+      if (data.moment) { setMoments([...moments, data.moment]); setShowAdd(false); setNewTitle(""); setNewTease(""); }
+    } finally { setAdding(false); }
+  }
+
+  async function deleteMoment(id: string) {
+    await fetch(`/api/creator/moments/${id}`, { method: "DELETE" });
+    setMoments(moments.map(m => m.id === id ? { ...m, is_active: false } : m));
+  }
+
+  async function uploadFile(id: string, file: File, type: "media" | "thumbnail") {
+    setUploadingId(id);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", type);
+      const res = await fetch(`/api/creator/moments/${id}/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.url) {
+        setMoments(moments.map(m => m.id === id ? { ...m, [type === "thumbnail" ? "thumbnail_url" : "media_url"]: data.url } : m));
+      }
+    } finally { setUploadingId(null); }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-white/40 text-sm">{moments.length} moment{moments.length !== 1 ? "s" : ""} configured</p>
-        <button className="text-sm gradient-bg text-white px-4 py-1.5 rounded-xl font-medium">
-          + Add Moment
+        <p className="text-white/40 text-sm">{active.length} active moment{active.length !== 1 ? "s" : ""}</p>
+        <button onClick={() => setShowAdd(!showAdd)} className="text-sm gradient-bg text-white px-4 py-1.5 rounded-xl font-medium">
+          {showAdd ? "Cancel" : "+ Add Moment"}
         </button>
       </div>
-      {moments.map((moment) => (
-        <div key={moment.id} className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4 space-y-2">
+
+      {showAdd && (
+        <div className="bg-[#1E1E30] border border-[#FF3CAC]/20 rounded-2xl p-4 space-y-3">
+          <p className="text-white font-semibold text-sm">New Moment</p>
+          <input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Title (e.g. Late Night Thoughts)" className="creator-input" />
+          <textarea value={newTease} onChange={e => setNewTease(e.target.value)} placeholder="Tease copy shown before unlock..." rows={2} className="creator-input resize-none" />
+          <div className="flex gap-3">
+            <select value={newType} onChange={e => { setNewType(e.target.value); setNewPrice(e.target.value === "video" ? 4.99 : 2.99); }} className="creator-input flex-1">
+              <option value="image">📸 Image</option>
+              <option value="video">🎬 Video</option>
+            </select>
+            <div className="flex items-center gap-2">
+              <span className="text-white/40 text-sm">$</span>
+              <input type="number" value={newPrice} onChange={e => setNewPrice(parseFloat(e.target.value))} step="0.01" className="creator-input w-20" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-white/40 text-xs">Auto-sidebar after</label>
+            <input type="number" value={newDelay} onChange={e => setNewDelay(parseInt(e.target.value))} className="creator-input w-16 py-1.5" />
+            <span className="text-white/40 text-xs">min</span>
+          </div>
+          <button onClick={addMoment} disabled={adding || !newTitle.trim()} className="w-full gradient-bg text-white font-semibold py-2.5 rounded-xl disabled:opacity-50">
+            {adding ? "Creating…" : "Create Moment"}
+          </button>
+        </div>
+      )}
+
+      <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={e => {
+        const f = e.target.files?.[0];
+        if (f && activeUploadId) uploadFile(activeUploadId, f, activeUploadType);
+        e.target.value = "";
+      }} />
+      <input ref={thumbInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+        const f = e.target.files?.[0];
+        if (f && activeUploadId) uploadFile(activeUploadId, f, "thumbnail");
+        e.target.value = "";
+      }} />
+
+      {active.map(moment => (
+        <div key={moment.id} className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-white font-semibold text-sm">{moment.title}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${
-                moment.media_type === "video" ? "bg-purple-500/20 text-purple-300" : "bg-blue-500/20 text-blue-300"
-              }`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${moment.media_type === "video" ? "bg-purple-500/20 text-purple-300" : "bg-blue-500/20 text-blue-300"}`}>
                 {moment.media_type === "video" ? "🎬 Video" : "📸 Image"}
               </span>
             </div>
-            <span className="text-white font-semibold text-sm">${moment.price.toFixed(2)}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-semibold text-sm">${Number(moment.price).toFixed(2)}</span>
+              <button onClick={() => deleteMoment(moment.id)} className="text-red-400/40 hover:text-red-400 transition-colors">
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+              </button>
+            </div>
           </div>
           <p className="text-white/50 text-xs leading-snug">"{moment.tease_copy}"</p>
-          <div className="flex items-center gap-3 pt-1">
-            <span className={`text-xs ${moment.is_active ? "text-green-400" : "text-white/30"}`}>
-              {moment.is_active ? "Active" : "Hidden"}
-            </span>
-            <span className="text-white/25 text-xs">
-              Auto-sidebar after {moment.sidebar_delay_minutes}m
-            </span>
+
+          {/* Thumbnail */}
+          {moment.thumbnail_url ? (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-[#252538]">
+              <Image src={moment.thumbnail_url} alt="thumbnail" fill className="object-cover" unoptimized />
+              <button
+                onClick={() => { setActiveUploadId(moment.id); setActiveUploadType("thumbnail"); thumbInputRef.current?.click(); }}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity text-white text-xs font-medium"
+              >
+                Replace thumbnail
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setActiveUploadId(moment.id); setActiveUploadType("thumbnail"); thumbInputRef.current?.click(); }}
+              disabled={uploadingId === moment.id}
+              className="w-full border border-dashed border-white/15 text-white/40 hover:text-white/60 hover:border-white/30 py-3 rounded-xl text-xs transition-colors"
+            >
+              {uploadingId === moment.id ? "Uploading…" : "↑ Upload thumbnail (shown blurred)"}
+            </button>
+          )}
+
+          {/* Media */}
+          <div className="flex items-center justify-between">
             {moment.media_url ? (
-              <span className="text-green-400 text-xs">✓ Media uploaded</span>
+              <span className="text-green-400 text-xs">✓ {moment.media_type === "video" ? "Video" : "Image"} uploaded</span>
             ) : (
-              <button className="text-[#FF3CAC] text-xs hover:underline">Upload media</button>
+              <span className="text-white/30 text-xs">No media yet</span>
             )}
+            <button
+              onClick={() => { setActiveUploadId(moment.id); setActiveUploadType("media"); mediaInputRef.current?.click(); }}
+              disabled={uploadingId === moment.id}
+              className="text-[#FF3CAC] text-xs hover:underline disabled:opacity-50"
+            >
+              {uploadingId === moment.id ? "Uploading…" : moment.media_url ? "Replace media" : "↑ Upload media"}
+            </button>
           </div>
         </div>
       ))}
@@ -340,45 +471,134 @@ function MomentsTab({ moments, personaId }: { moments: Moment[]; personaId: stri
 }
 
 // ── Continuation Tab ─────────────────────────────────────────
-function ContinuationTab({
-  prompts,
-  personaId,
-  personaName,
-}: {
-  prompts: ContinuationPrompt[];
-  personaId: string;
-  personaName: string;
-}) {
+function ContinuationTab({ prompts, setPrompts, personaId, personaName }: { prompts: ContinuationPrompt[]; setPrompts: (p: ContinuationPrompt[]) => void; personaId: string; personaName: string }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTrigger, setNewTrigger] = useState("message_count");
+  const [newLine, setNewLine] = useState("");
+  const [newCta, setNewCta] = useState("");
+  const [newPrice, setNewPrice] = useState(2.00);
+  const [newCooldown, setNewCooldown] = useState(30);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLine, setEditLine] = useState("");
+  const [editCta, setEditCta] = useState("");
+
+  const active = prompts.filter(p => p.is_active);
+
+  async function addPrompt() {
+    if (!newLine.trim() || !newCta.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/creator/continuation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_id: personaId, trigger_type: newTrigger, continuation_line: newLine, popup_cta: newCta, price: newPrice, cooldown_minutes: newCooldown }),
+      });
+      const data = await res.json();
+      if (data.prompt) { setPrompts([...prompts, data.prompt]); setShowAdd(false); setNewLine(""); setNewCta(""); }
+    } finally { setAdding(false); }
+  }
+
+  async function saveEdit(id: string) {
+    const res = await fetch(`/api/creator/continuation/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ continuation_line: editLine, popup_cta: editCta }),
+    });
+    const data = await res.json();
+    if (data.prompt) { setPrompts(prompts.map(p => p.id === id ? data.prompt : p)); setEditingId(null); }
+  }
+
+  async function deletePrompt(id: string) {
+    await fetch(`/api/creator/continuation/${id}`, { method: "DELETE" });
+    setPrompts(prompts.map(p => p.id === id ? { ...p, is_active: false } : p));
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-white/40 text-sm">
-        These lines appear as natural conversation endings before the $2 continuation popup.
-      </p>
-      {prompts.map((prompt) => (
+      <div className="flex items-center justify-between">
+        <p className="text-white/40 text-sm">Shown before the $2 continuation popup</p>
+        <button onClick={() => setShowAdd(!showAdd)} className="text-sm gradient-bg text-white px-4 py-1.5 rounded-xl font-medium">
+          {showAdd ? "Cancel" : "+ Add Prompt"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <div className="bg-[#1E1E30] border border-[#FF3CAC]/20 rounded-2xl p-4 space-y-3">
+          <p className="text-white font-semibold text-sm">New Continuation Prompt</p>
+          <Field label="Trigger">
+            <select value={newTrigger} onChange={e => setNewTrigger(e.target.value)} className="creator-input">
+              <option value="message_count">Message count (every 20 msgs)</option>
+              <option value="emotion_score">Emotion score (≥ 0.7)</option>
+            </select>
+          </Field>
+          <Field label="Emotional line (what she says)">
+            <textarea value={newLine} onChange={e => setNewLine(e.target.value)} rows={2} placeholder={`i don't want this to end...`} className="creator-input resize-none" />
+          </Field>
+          <Field label="Popup CTA button text">
+            <input value={newCta} onChange={e => setNewCta(e.target.value)} placeholder={`Stay with ${personaName} • $2.00`} className="creator-input" />
+          </Field>
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-white/40 text-xs">Price $</label>
+              <input type="number" value={newPrice} onChange={e => setNewPrice(parseFloat(e.target.value))} step="0.50" className="creator-input w-20" />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-white/40 text-xs">Cooldown</label>
+              <input type="number" value={newCooldown} onChange={e => setNewCooldown(parseInt(e.target.value))} className="creator-input w-16" />
+              <span className="text-white/40 text-xs">min</span>
+            </div>
+          </div>
+          <button onClick={addPrompt} disabled={adding || !newLine.trim()} className="w-full gradient-bg text-white font-semibold py-2.5 rounded-xl disabled:opacity-50">
+            {adding ? "Adding…" : "Add Prompt"}
+          </button>
+        </div>
+      )}
+
+      {active.map(prompt => (
         <div key={prompt.id} className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs bg-[#FF3CAC]/15 text-[#FF3CAC] px-2 py-0.5 rounded-full">
               {prompt.trigger_type === "message_count" ? "Message count" : "Emotion trigger"}
             </span>
-            <span className="text-white/40 text-xs">{prompt.cooldown_minutes}m cooldown</span>
+            <div className="flex items-center gap-3">
+              <span className="text-white/40 text-xs">{prompt.cooldown_minutes}m cooldown</span>
+              <button onClick={() => { setEditingId(prompt.id); setEditLine(prompt.continuation_line); setEditCta(prompt.popup_cta); }} className="text-white/30 hover:text-white/70">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button onClick={() => deletePrompt(prompt.id)} className="text-red-400/40 hover:text-red-400">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+              </button>
+            </div>
           </div>
-          <div className="bg-[#252538] rounded-xl px-3 py-2.5">
-            <p className="text-white/80 text-sm leading-snug">"{prompt.continuation_line}"</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-white/40 text-xs">Popup CTA: <span className="text-white/70">"{prompt.popup_cta}"</span></p>
-            <span className="text-white font-semibold text-sm">${prompt.price.toFixed(2)}</span>
-          </div>
+
+          {editingId === prompt.id ? (
+            <div className="space-y-2">
+              <textarea value={editLine} onChange={e => setEditLine(e.target.value)} rows={2} className="creator-input resize-none text-sm" />
+              <input value={editCta} onChange={e => setEditCta(e.target.value)} className="creator-input text-sm" />
+              <div className="flex gap-2">
+                <button onClick={() => saveEdit(prompt.id)} className="gradient-bg text-white text-xs px-4 py-1.5 rounded-lg">Save</button>
+                <button onClick={() => setEditingId(null)} className="text-white/30 text-xs px-3 py-1.5 rounded-lg hover:text-white/50">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-[#252538] rounded-xl px-3 py-2.5">
+                <p className="text-white/80 text-sm leading-snug">"{prompt.continuation_line}"</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-white/40 text-xs">CTA: <span className="text-white/70">"{prompt.popup_cta}"</span></p>
+                <span className="text-white font-semibold text-sm">${Number(prompt.price).toFixed(2)}</span>
+              </div>
+            </>
+          )}
         </div>
       ))}
-      <button className="w-full border border-dashed border-white/15 text-white/40 hover:text-white/60 hover:border-white/25 py-3 rounded-xl text-sm transition-colors">
-        + Add continuation prompt
-      </button>
     </div>
   );
 }
 
-// ── Shared components ─────────────────────────────────────────
+// ── Shared ────────────────────────────────────────────────────
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -388,26 +608,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function SliderField({
-  label, value, onChange, min, max, left, right,
-}: {
-  label: string; value: number; onChange: (v: number) => void;
-  min: number; max: number; left: string; right: string;
-}) {
+function SliderField({ label, value, onChange, min, max, left, right }: { label: string; value: number; onChange: (v: number) => void; min: number; max: number; left: string; right: string }) {
   return (
     <div className="bg-[#1E1E30] border border-white/8 rounded-xl px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <label className="text-white/60 text-sm font-medium">{label}</label>
         <span className="text-[#FF3CAC] font-bold text-sm">{value}/10</span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        className="w-full accent-[#FF3CAC] cursor-pointer"
-      />
+      <input type="range" min={min} max={max} value={value} onChange={e => onChange(parseInt(e.target.value))} className="w-full accent-[#FF3CAC] cursor-pointer" />
       <div className="flex justify-between">
         <span className="text-white/25 text-[11px]">{left}</span>
         <span className="text-white/25 text-[11px]">{right}</span>
