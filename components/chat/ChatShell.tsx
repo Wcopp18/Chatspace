@@ -2,12 +2,16 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import PersonaHeader from "./PersonaHeader";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
+import TensionMeter from "./TensionMeter";
+import TensionExplainer from "./TensionExplainer";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
 import type { Database } from "@/types/database";
+import type { TensionBand } from "./TensionMeter";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type DBMessage = Database["public"]["Tables"]["messages"]["Row"];
@@ -20,11 +24,30 @@ interface ContinuationData {
   price: number;
 }
 
+interface TensionData {
+  score: number;
+  band: TensionBand;
+  delta: number;
+  previousBand: TensionBand;
+  rewardTriggered: boolean;
+}
+
+interface InjectedMoment {
+  id: string;
+  title: string;
+  teaseCopy: string;
+  mediaType: string;
+  price: number;
+  thumbnailUrl: string | null;
+  rarityTier: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  injectedMoment?: InjectedMoment;
 }
 
 interface Props {
@@ -59,6 +82,9 @@ export default function ChatShell({
   const [sidebarMoments, setSidebarMoments] = useState<Moment[]>([]);
   const [continuation, setContinuation] = useState<ContinuationData | null>(null);
   const [introSent, setIntroSent] = useState(initialMessages.length > 0);
+  const [tension, setTension] = useState<TensionData | null>(null);
+  const [showTensionExplainer, setShowTensionExplainer] = useState(false);
+  const [tensionExplainerShown, setTensionExplainerShown] = useState(false);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -130,8 +156,55 @@ export default function ChatShell({
           role: "assistant",
           content: data.message,
           createdAt: new Date().toISOString(),
+          injectedMoment: data.injectedMoment || undefined,
         };
         setMessages((prev) => [...prev, aiMsg]);
+
+        // Update tension meter
+        if (data.tension) {
+          setTension(data.tension);
+
+          // Show tension explainer on first tension update (first session only)
+          if (!tensionExplainerShown && !initialMessages.length) {
+            const messageCount = messages.length + 2; // +2 for this exchange
+            if (messageCount >= 4 && messageCount <= 6) {
+              setShowTensionExplainer(true);
+              setTensionExplainerShown(true);
+            }
+          }
+        }
+
+        // Handle injected moment — add to moments list
+        if (data.injectedMoment) {
+          const newMoment: Moment = {
+            id: data.injectedMoment.id,
+            persona_id: persona.id,
+            title: data.injectedMoment.title,
+            tease_copy: data.injectedMoment.teaseCopy,
+            media_type: data.injectedMoment.mediaType,
+            media_url: null,
+            thumbnail_url: data.injectedMoment.thumbnailUrl,
+            price: data.injectedMoment.price,
+            expires_at: null,
+            lock_state: "locked",
+            auto_move_to_sidebar: true,
+            sidebar_delay_minutes: 10,
+            is_active: true,
+            sort_order: 0,
+            tags: [],
+            rarity_tier: data.injectedMoment.rarityTier,
+            min_tension_score: 0,
+            mood_tags: [],
+            story_arc_id: null,
+            vault_event_id: null,
+            is_custom_delivery: false,
+            delivered_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            unlocked: false,
+          };
+          setMoments((prev) => [...prev, newMoment]);
+        }
 
         // Show continuation popup if triggered
         if (data.continuationPrompt) {
@@ -143,7 +216,7 @@ export default function ChatShell({
     } finally {
       setLoading(false);
     }
-  }, [loading, conversationId, persona.slug]);
+  }, [loading, conversationId, persona.slug, persona.id, messages.length, tensionExplainerShown, initialMessages.length]);
 
   const dismissMomentToSidebar = useCallback((momentId: string) => {
     setMoments((prev) => {
@@ -183,7 +256,6 @@ export default function ChatShell({
         body: JSON.stringify({ conversationId, promptId: continuation.id }),
       });
       setContinuation(null);
-      // Add the continuation line as an AI message
       const contMsg: ChatMessage = {
         id: `cont-${Date.now()}`,
         role: "assistant",
@@ -196,7 +268,6 @@ export default function ChatShell({
     }
   }, [continuation, conversationId]);
 
-  // Count unlocked moments for badge
   const sidebarBadgeCount = sidebarMoments.filter((m) => !m.unlocked).length;
 
   return (
@@ -208,6 +279,9 @@ export default function ChatShell({
         onSidebarOpen={() => setSidebarOpen(true)}
         onBack={() => router.push("/")}
       />
+
+      {/* Tension Meter */}
+      <TensionMeter tension={tension} personaName={persona.display_name} />
 
       {/* Messages */}
       <MessageList
@@ -240,6 +314,16 @@ export default function ChatShell({
           onDecline={() => setContinuation(null)}
         />
       )}
+
+      {/* Tension explainer overlay */}
+      <AnimatePresence>
+        {showTensionExplainer && (
+          <TensionExplainer
+            personaName={persona.display_name}
+            onDismiss={() => setShowTensionExplainer(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
