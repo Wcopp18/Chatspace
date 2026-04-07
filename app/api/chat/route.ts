@@ -239,11 +239,14 @@ export async function POST(request: NextRequest) {
 
     // ── STEP 5b: Detect custom request intent ──
     const customRequestPatterns = [
-      /custom\s*(video|image|photo|pic|content)/i,
-      /make\s*(me\s*)?(a\s*)?(video|image|photo)/i,
-      /request\s*(a\s*)?(video|image|photo|custom)/i,
+      /custom\s*(vid|video|image|photo|pic|content)/i,
+      /make\s*(me\s*)?(a\s*)?(vid|video|image|photo)/i,
+      /request\s*(a\s*)?(vid|video|image|photo|custom|form)/i,
       /can\s*you\s*(make|create|film|shoot|do)/i,
-      /i\s*want\s*(a\s*)?(custom|personal|special)\s*(video|image|photo)/i,
+      /i\s*want\s*(a\s*)?(custom|personal|special)\s*(vid|video|image|photo)/i,
+      /cust\w*\s*vid/i,
+      /video\s*request/i,
+      /image\s*request/i,
     ];
     const showCustomRequestCard = customRequestPatterns.some(p => p.test(message));
 

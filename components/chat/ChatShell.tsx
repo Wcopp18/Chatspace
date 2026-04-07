@@ -301,20 +301,9 @@ export default function ChatShell({
       />
 
       {/* Input */}
-      <ChatInput onSend={sendMessage} disabled={loading} />
-
-      {/* Moments sidebar */}
-      <MomentsSidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        moments={sidebarMoments}
-        onUnlock={unlockMoment}
-        persona={persona}
-      />
-
-      {/* Custom request card — inline overlay above input */}
+      {/* Custom request card — inline above input */}
       {showCustomRequest && (
-        <div className="absolute bottom-20 left-0 right-0 flex justify-center px-4 z-30">
+        <div className="flex justify-center px-4 py-2 bg-[#0D0D1A]">
           <CustomRequestCard
             persona={persona}
             conversationId={conversationId}
@@ -332,6 +321,17 @@ export default function ChatShell({
           />
         </div>
       )}
+
+      <ChatInput onSend={sendMessage} disabled={loading} />
+
+      {/* Moments sidebar */}
+      <MomentsSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        moments={sidebarMoments}
+        onUnlock={unlockMoment}
+        persona={persona}
+      />
 
       {/* Continuation popup */}
       {continuation && (
