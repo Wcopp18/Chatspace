@@ -237,6 +237,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── STEP 5b: Detect custom request intent ──
+    const customRequestPatterns = [
+      /custom\s*(video|image|photo|pic|content)/i,
+      /make\s*(me\s*)?(a\s*)?(video|image|photo)/i,
+      /request\s*(a\s*)?(video|image|photo|custom)/i,
+      /can\s*you\s*(make|create|film|shoot|do)/i,
+      /i\s*want\s*(a\s*)?(custom|personal|special)\s*(video|image|photo)/i,
+    ];
+    const showCustomRequestCard = customRequestPatterns.some(p => p.test(message));
+
     // ── STEP 6: Calculate emotion and check continuation ──
     const allMessages = [...aiMessages, { role: "assistant" as const, content: aiResponse }];
     const emotionScore = calculateEmotionScore(allMessages);
@@ -307,6 +317,7 @@ export async function POST(request: NextRequest) {
         rewardTriggered: tensionResult.rewardTriggered,
       },
       injectedMoment,
+      showCustomRequestCard,
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id,
         line: continuationPrompt.continuation_line,

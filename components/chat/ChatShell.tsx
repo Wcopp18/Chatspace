@@ -10,6 +10,7 @@ import TensionMeter from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
+import CustomRequestCard from "./CustomRequestCard";
 import type { Database } from "@/types/database";
 import type { TensionBand } from "./TensionMeter";
 
@@ -85,6 +86,7 @@ export default function ChatShell({
   const [tension, setTension] = useState<TensionData | null>(null);
   const [showTensionExplainer, setShowTensionExplainer] = useState(false);
   const [tensionExplainerShown, setTensionExplainerShown] = useState(false);
+  const [showCustomRequest, setShowCustomRequest] = useState(false);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -206,6 +208,11 @@ export default function ChatShell({
           setMoments((prev) => [...prev, newMoment]);
         }
 
+        // Show custom request card if triggered
+        if (data.showCustomRequestCard) {
+          setShowCustomRequest(true);
+        }
+
         // Show continuation popup if triggered
         if (data.continuationPrompt) {
           setContinuation(data.continuationPrompt);
@@ -304,6 +311,27 @@ export default function ChatShell({
         onUnlock={unlockMoment}
         persona={persona}
       />
+
+      {/* Custom request card — inline overlay above input */}
+      {showCustomRequest && (
+        <div className="absolute bottom-20 left-0 right-0 flex justify-center px-4 z-30">
+          <CustomRequestCard
+            persona={persona}
+            conversationId={conversationId}
+            onSubmitted={() => {
+              setShowCustomRequest(false);
+              const confirmMsg: ChatMessage = {
+                id: `req-${Date.now()}`,
+                role: "assistant",
+                content: `okay i got your request 😏 i'll get to work on something special for you`,
+                createdAt: new Date().toISOString(),
+              };
+              setMessages((prev) => [...prev, confirmMsg]);
+            }}
+            onDismiss={() => setShowCustomRequest(false)}
+          />
+        </div>
+      )}
 
       {/* Continuation popup */}
       {continuation && (
