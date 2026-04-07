@@ -16,7 +16,7 @@ import {
   selectCallback,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
-import type { Database, TensionBand } from "@/types/database";
+import type { Database } from "@/types/database";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
@@ -119,123 +119,98 @@ export async function POST(request: NextRequest) {
     aiMessages.push({ role: "user", content: message });
 
     const currentMessageCount = conversation?.message_count || 0;
-    const currentTensionScore = Number(conversation?.current_tension_score || 0);
-    const currentBand = getTensionBand(currentTensionScore);
 
-    // ── STEP 1: Extract and save memories from user message ──
-    const extractedMemories = extractMemories(message);
-    if (extractedMemories.length > 0) {
-      saveMemories(supabase, user.id, persona.id, extractedMemories).catch(console.error);
-    }
+    // ── STEP 1: Extract and save memories (non-blocking, safe) ──
+    try {
+      const extractedMemories = extractMemories(message);
+      if (extractedMemories.length > 0) {
+        saveMemories(supabase, user.id, persona.id, extractedMemories).catch(e => console.error("Memory save error:", e));
+      }
+    } catch (e) { console.error("Memory extract error:", e); }
 
-    // ── STEP 2: Response routing (prewritten vs Claude) ──
-    const routingDecision = await routeResponse(supabase, {
-      userId: user.id,
-      personaId: persona.id,
-      conversationId: convId,
-      userMessage: message,
-      messageHistory: aiMessages,
-      tensionScore: currentTensionScore,
-      tensionBand: currentBand,
-      messageCount: currentMessageCount,
-    });
-
+    // ── STEP 2: Generate AI response (always works — this is the core) ──
     let aiResponse: string;
-    let responseSource: string;
+    let responseSource = "claude";
 
-    if (routingDecision.route === "prewritten" && routingDecision.prewrittenResponse) {
-      // Use prewritten response
-      aiResponse = routingDecision.prewrittenResponse.content;
-      responseSource = "prewritten";
+    // Try routing engine, fall back to direct Claude if it fails
+    try {
+      const currentTensionScore = Number(conversation?.current_tension_score || 0);
+      const currentBand = getTensionBand(currentTensionScore);
 
-      // Record usage for anti-repeat
-      await recordResponseUsage(
-        supabase,
-        user.id,
-        persona.id,
-        routingDecision.prewrittenResponse.id,
-        routingDecision.prewrittenResponse.semanticGroup,
-      );
-    } else {
-      // Fall back to Claude
-      // Check for memory callback to inject
-      const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
-
-      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
-      const fullPrompt = callbackLine
-        ? `${systemPrompt}\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`
-        : systemPrompt;
-
-      const ai = getAIProvider("claude");
-      aiResponse = await ai.chat({
-        messages: aiMessages,
-        systemPrompt: fullPrompt,
-        maxTokens: 250,
-        temperature: 0.85,
+      const routingDecision = await routeResponse(supabase, {
+        userId: user.id,
+        personaId: persona.id,
+        conversationId: convId,
+        userMessage: message,
+        messageHistory: aiMessages,
+        tensionScore: currentTensionScore,
+        tensionBand: currentBand,
+        messageCount: currentMessageCount,
       });
-      responseSource = "claude";
+
+      if (routingDecision.route === "prewritten" && routingDecision.prewrittenResponse) {
+        aiResponse = routingDecision.prewrittenResponse.content;
+        responseSource = "prewritten";
+        recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
+      } else {
+        // Claude fallback with optional memory callback
+        let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+        try {
+          const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
+          if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
+        } catch (e) { console.error("Callback error:", e); }
+
+        const ai = getAIProvider("claude");
+        aiResponse = await ai.chat({ messages: aiMessages, systemPrompt: fullPrompt, maxTokens: 250, temperature: 0.85 });
+      }
+
+      // Log routing decision (non-blocking)
+      logRoutingDecision(supabase, convId, message, routingDecision, currentTensionScore, aiResponse).catch(console.error);
+    } catch (routingError) {
+      console.error("Routing engine error, falling back to Claude:", routingError);
+      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      const ai = getAIProvider("claude");
+      aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
 
     // ── STEP 3: Save messages ──
-    await supabase.from("messages").insert({
-      conversation_id: convId,
-      role: "user",
-      content: message,
-    });
+    await supabase.from("messages").insert({ conversation_id: convId, role: "user", content: message });
+    await supabase.from("messages").insert({ conversation_id: convId, role: "assistant", content: aiResponse, source: responseSource });
 
-    await supabase.from("messages").insert({
-      conversation_id: convId,
-      role: "assistant",
-      content: aiResponse,
-      source: responseSource,
-      prewritten_response_id: routingDecision.prewrittenResponse?.id || null,
-    });
+    // ── STEP 4: Update tension (safe — won't crash if it fails) ──
+    let tensionResult: { newScore: number; newBand: string; delta: number; previousBand: string; rewardTriggered: boolean; previousScore: number; revealProbability: number } = { newScore: 0, newBand: "warming_up", delta: 0, previousBand: "warming_up", rewardTriggered: false, previousScore: 0, revealProbability: 0 };
+    try {
+      const lastMessageTime = messageHistory && messageHistory.length > 0
+        ? new Date(messageHistory[messageHistory.length - 1].created_at).getTime()
+        : Date.now();
+      const responseSpeed = (Date.now() - lastMessageTime) / 1000;
+      const flirtIntensity = analyzeFlirtIntensity(message);
 
-    // ── STEP 4: Update tension ──
-    const lastMessageTime = messageHistory && messageHistory.length > 0
-      ? new Date(messageHistory[messageHistory.length - 1].created_at).getTime()
-      : Date.now();
-    const responseSpeed = (Date.now() - lastMessageTime) / 1000;
-
-    const flirtIntensity = analyzeFlirtIntensity(message);
-
-    const tensionResult = await updateTension(supabase, user.id, persona.id, convId, {
-      messageLength: message.length,
-      flirtIntensity,
-      toneMatch: 0.5, // Default — could be enhanced with NLP
-      responseSpeed,
-      isRepetitive: false, // Could be enhanced with dedup check
-      isOffTopic: false,   // Could be enhanced with topic continuity check
-      personaMoodMultiplier: 1.0,
-      recentUnlockCooldown: false,
-      streakDays: 0,
-      totalPurchases: 0,
-    });
-
-    // ── STEP 5: Check for premium moment injection ──
-    let injectedMoment = null;
-    if (tensionResult.rewardTriggered) {
-      const candidate = await selectMomentForInjection(supabase, {
-        userId: user.id,
-        personaId: persona.id,
-        tensionBand: tensionResult.newBand,
-        tensionScore: tensionResult.newScore,
-        moodTag: routingDecision.moodDetected,
-        conversationId: convId,
+      tensionResult = await updateTension(supabase, user.id, persona.id, convId, {
+        messageLength: message.length, flirtIntensity, toneMatch: 0.5, responseSpeed,
+        isRepetitive: false, isOffTopic: false, personaMoodMultiplier: 1.0,
+        recentUnlockCooldown: false, streakDays: 0, totalPurchases: 0,
       });
+    } catch (e) { console.error("Tension update error:", e); }
 
-      if (candidate) {
-        injectedMoment = {
-          id: candidate.moment.id,
-          title: candidate.moment.title,
-          teaseCopy: candidate.teaserLine,
-          mediaType: candidate.moment.media_type,
-          price: candidate.moment.price,
-          thumbnailUrl: candidate.moment.thumbnail_url,
-          rarityTier: candidate.moment.rarity_tier,
-        };
+    // ── STEP 5: Check for premium moment injection (safe) ──
+    let injectedMoment = null;
+    try {
+      if (tensionResult.rewardTriggered) {
+        const candidate = await selectMomentForInjection(supabase, {
+          userId: user.id, personaId: persona.id, tensionBand: tensionResult.newBand as "warming_up" | "image_zone" | "premium_zone" | "video_zone",
+          tensionScore: tensionResult.newScore, moodTag: null, conversationId: convId,
+        });
+        if (candidate) {
+          injectedMoment = {
+            id: candidate.moment.id, title: candidate.moment.title,
+            teaseCopy: candidate.teaserLine, mediaType: candidate.moment.media_type,
+            price: candidate.moment.price, thumbnailUrl: candidate.moment.thumbnail_url,
+            rarityTier: candidate.moment.rarity_tier,
+          };
+        }
       }
-    }
+    } catch (e) { console.error("Moment injection error:", e); }
 
     // ── STEP 5b: Detect custom request intent ──
     const customRequestPatterns = [
@@ -247,85 +222,52 @@ export async function POST(request: NextRequest) {
       /cust\w*\s*vid/i,
       /video\s*request/i,
       /image\s*request/i,
+      /request\s*form/i,
+      /fill\s*out.*form/i,
     ];
     const showCustomRequestCard = customRequestPatterns.some(p => p.test(message));
 
-    // ── STEP 6: Calculate emotion and check continuation ──
+    // ── STEP 6: Calculate emotion and check continuation (safe) ──
     const allMessages = [...aiMessages, { role: "assistant" as const, content: aiResponse }];
     const emotionScore = calculateEmotionScore(allMessages);
     const newMessageCount = currentMessageCount + 2;
 
-    const lastContinuationAt = conversation?.last_continuation_at
-      ? new Date(conversation.last_continuation_at)
-      : null;
-
-    const triggerContinuation = shouldTriggerContinuation(
-      newMessageCount,
-      emotionScore,
-      lastContinuationAt,
-      persona.continuation_frequency || 30
-    );
-
     let continuationPrompt = null;
-    if (triggerContinuation) {
-      const { data: contPrompts } = await supabase
-        .from("continuation_prompts")
-        .select("*")
-        .eq("persona_id", persona.id)
-        .eq("is_active", true)
-        .limit(3);
-
-      if (contPrompts && contPrompts.length > 0) {
-        continuationPrompt = contPrompts[Math.floor(Math.random() * contPrompts.length)];
+    try {
+      const lastContinuationAt = conversation?.last_continuation_at ? new Date(conversation.last_continuation_at) : null;
+      const triggerContinuation = shouldTriggerContinuation(newMessageCount, emotionScore, lastContinuationAt, persona.continuation_frequency || 30);
+      if (triggerContinuation) {
+        const { data: contPrompts } = await supabase.from("continuation_prompts").select("*").eq("persona_id", persona.id).eq("is_active", true).limit(3);
+        if (contPrompts && contPrompts.length > 0) {
+          continuationPrompt = contPrompts[Math.floor(Math.random() * contPrompts.length)];
+        }
       }
-    }
+    } catch (e) { console.error("Continuation error:", e); }
 
-    // ── STEP 7: Update conversation state ──
-    const prewrittenDelta = responseSource === "prewritten" ? 1 : 0;
-    const claudeDelta = responseSource === "claude" ? 1 : 0;
+    // ── STEP 7: Update conversation state (safe) ──
+    try {
+      await supabase.from("conversations").update({
+        message_count: newMessageCount, emotion_score: emotionScore,
+        current_tension_score: tensionResult.newScore, updated_at: new Date().toISOString(),
+      }).eq("id", convId);
+    } catch (e) { console.error("Conversation update error:", e); }
 
-    await supabase
-      .from("conversations")
-      .update({
-        message_count: newMessageCount,
-        emotion_score: emotionScore,
-        current_tension_score: tensionResult.newScore,
-        total_prewritten_count: (conversation?.total_prewritten_count || 0) + prewrittenDelta,
-        total_claude_count: (conversation?.total_claude_count || 0) + claudeDelta,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", convId);
-
-    // ── STEP 8: Log routing decision (async, non-blocking) ──
-    logRoutingDecision(
-      supabase,
-      convId,
-      message,
-      routingDecision,
-      tensionResult.newScore,
-      aiResponse,
-    ).catch(console.error);
-
-    // ── STEP 9: Return response ──
+    // ── STEP 8: Return response ──
     return NextResponse.json({
       message: aiResponse,
       conversationId: convId,
       emotionScore,
       responseSource,
       tension: {
-        score: tensionResult.newScore,
-        band: tensionResult.newBand,
-        delta: tensionResult.delta,
-        previousBand: tensionResult.previousBand,
+        score: tensionResult.newScore, band: tensionResult.newBand,
+        delta: tensionResult.delta, previousBand: tensionResult.previousBand,
         rewardTriggered: tensionResult.rewardTriggered,
       },
       injectedMoment,
       showCustomRequestCard,
       continuationPrompt: continuationPrompt ? {
-        id: continuationPrompt.id,
-        line: continuationPrompt.continuation_line,
-        cta: continuationPrompt.popup_cta,
-        price: continuationPrompt.price,
+        id: continuationPrompt.id, line: continuationPrompt.continuation_line,
+        cta: continuationPrompt.popup_cta, price: continuationPrompt.price,
       } : null,
     });
   } catch (error) {
