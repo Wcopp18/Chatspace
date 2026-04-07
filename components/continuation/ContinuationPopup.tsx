@@ -42,58 +42,49 @@ export default function ContinuationPopup({ persona, continuation, onAccept, onD
   const price = continuation.price || PRICING.EMOTIONAL_CONTINUATION;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center px-4 pb-6 sm:pb-0">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onDecline}
-      />
+    <div className="max-w-[320px] mx-auto my-4">
+      {/* Inline card with purple gradient border/glow */}
+      <div className="relative rounded-2xl p-[1px] bg-gradient-to-br from-purple-500/60 via-purple-600/40 to-purple-800/60 shadow-lg shadow-purple-600/20">
+        {/* Inner card */}
+        <div className="bg-[#1E1E30] rounded-2xl px-5 pt-7 pb-5 text-center relative overflow-hidden">
+          {/* Subtle purple glow behind lock */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-28 bg-purple-500/15 rounded-full blur-2xl pointer-events-none" />
 
-      {/* Sheet */}
-      <div className="relative w-full max-w-sm bg-[#1A1A2E] border border-white/10 rounded-3xl overflow-hidden animate-slide-up shadow-2xl">
-        {/* Top gradient bar */}
-        <div className="h-1 w-full gradient-bg" />
-
-        {/* Glow behind avatar */}
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 w-32 h-32 bg-[#FF3CAC]/20 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="px-6 pt-8 pb-6 text-center">
-          {/* Avatar */}
-          <div className="relative inline-block mb-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-[#FF3CAC]/50 ring-offset-2 ring-offset-[#1A1A2E] mx-auto">
-              <Image
-                src={avatarUrl}
-                alt={persona.display_name}
-                width={80}
-                height={80}
-                className="w-full h-full object-cover"
-                unoptimized
-              />
-            </div>
+          {/* Lock icon — purple gradient circle */}
+          <div className="relative inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 shadow-lg shadow-purple-500/40 mb-4">
+            <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
           </div>
 
-          {/* Name */}
-          <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-2">
-            {persona.display_name}
+          {/* Bold title */}
+          <h3 className="text-white text-lg font-bold leading-snug mb-1.5 text-balance">
+            {continuation.line}
+          </h3>
+
+          {/* Subtitle */}
+          <p className="text-white/40 text-sm mb-5">
+            Keep this moment going a little longer
           </p>
 
-          {/* The emotional line */}
-          <p className="text-white text-lg font-medium leading-snug mb-6 text-balance">
-            &ldquo;{continuation.line}&rdquo;
-          </p>
-
-          {/* CTA button */}
+          {/* CTA button — full-width purple gradient */}
           <button
             onClick={onAccept}
-            className="w-full gradient-bg text-white font-bold py-4 rounded-2xl text-base glow-pink transition-all active:scale-[0.98] mb-3"
+            className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-bold py-3.5 rounded-xl text-sm transition-all active:scale-[0.98] shadow-lg shadow-purple-600/30 mb-3"
           >
-            {continuation.cta || `Stay with ${persona.display_name} • $${price.toFixed(2)}`}
+            ✨ Hear it now — ${price.toFixed(2)}
           </button>
+
+          {/* Urgency text */}
+          <p className="text-white/30 text-xs italic mb-1">
+            This moment won&apos;t last forever...
+          </p>
 
           {/* Decline */}
           <button
             onClick={onDecline}
-            className="w-full text-white/30 text-sm py-2 hover:text-white/50 transition-colors"
+            className="text-white/25 text-xs py-1.5 hover:text-white/40 transition-colors"
           >
             Maybe later
           </button>
