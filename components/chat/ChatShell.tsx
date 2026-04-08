@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import PersonaHeader from "./PersonaHeader";
@@ -8,10 +8,26 @@ import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
 import TensionMeter from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
+import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
+import AuthModal from "@/components/auth/AuthModal";
+import OnboardingOverlay from "@/components/onboarding/OnboardingOverlay";
+import MediaTeaserCard from "./events/MediaTeaserCard";
+import TimerUrgencyCard from "./events/TimerUrgencyCard";
+import BundleRail from "./events/BundleRail";
+import GirlDiscoveryRail from "./events/GirlDiscoveryRail";
+import RewardProgressCard from "./events/RewardProgressCard";
+import {
+  evaluateEventInjection,
+  createEventSessionState,
+  recordEvent,
+  updateSessionState,
+  createDefaultPromotion,
+} from "@/lib/engine/event-engine";
 import type { Database } from "@/types/database";
 import type { TensionBand } from "./TensionMeter";
+import type { Promotion, EventSessionState } from "@/types/promotions";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type DBMessage = Database["public"]["Tables"]["messages"]["Row"];
@@ -42,21 +58,104 @@ interface InjectedMoment {
   rarityTier: string;
 }
 
+// Event card union
+interface ActiveEvent {
+  id: string;
+  promotion: Promotion;
+  shownAt: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
   injectedMoment?: InjectedMoment;
+  eventCard?: ActiveEvent; // event surfaces injected between messages
 }
 
 interface Props {
   persona: Persona;
-  userId: string;
+  userId: string | null; // null = unauthenticated deep-link user
   initialMessages: DBMessage[];
   initialConversationId: string | null;
   moments: Moment[];
+  isAuthenticated?: boolean;
 }
+
+// Default promotions for demo (will come from DB/admin panel in production)
+function getDefaultPromotions(personaId: string): Promotion[] {
+  const now = new Date().toISOString();
+  return [
+    {
+      ...createDefaultPromotion("media_teaser"),
+      id: "promo-teaser-1",
+      personaId,
+      personaIds: [personaId],
+      headline: "Only You Get To See Her Like This",
+      subtitle: "A private moment, just for you",
+      createdAt: now,
+      updatedAt: now,
+    } as Promotion,
+    {
+      ...createDefaultPromotion("timer_urgency"),
+      id: "promo-timer-1",
+      personaId,
+      personaIds: [personaId],
+      title: "Tonight Only",
+      subtitle: "She left this here just for a moment...",
+      timerDurationMinutes: 30,
+      originalPrice: 9.99,
+      promoPrice: 4.99,
+      createdAt: now,
+      updatedAt: now,
+    } as Promotion,
+    {
+      ...createDefaultPromotion("bundle_rail"),
+      id: "promo-bundle-1",
+      personaId,
+      personaIds: [personaId],
+      bundleTitle: "More from tonight",
+      bundleItems: [
+        { id: "b1", momentId: "m1", title: "Caught her smiling", thumbnailUrl: null, price: 1.99, imageCount: 3 },
+        { id: "b2", momentId: "m2", title: "Late night vibes", thumbnailUrl: null, price: 2.99, imageCount: 5, isBestValue: true },
+        { id: "b3", momentId: "m3", title: "Just woke up", thumbnailUrl: null, price: 1.99, imageCount: 2 },
+        { id: "b4", momentId: "m4", title: "Getting ready", thumbnailUrl: null, price: 3.99, imageCount: 4 },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    } as Promotion,
+    {
+      ...createDefaultPromotion("reward_progress"),
+      id: "promo-progress-1",
+      personaId,
+      personaIds: [personaId],
+      progressCopy: "2 more replies until she opens up more",
+      nextRewardLabel: "Tonight's surprise",
+      requiredActions: 5,
+      createdAt: now,
+      updatedAt: now,
+    } as Promotion,
+    {
+      ...createDefaultPromotion("discovery_circles"),
+      id: "promo-discovery-1",
+      personaId,
+      personaIds: [personaId],
+      title: "More girls you might click with",
+      createdAt: now,
+      updatedAt: now,
+    } as Promotion,
+  ];
+}
+
+// Placeholder girl data for discovery rail
+const DISCOVERY_GIRLS = [
+  { id: "g1", slug: "luna", displayName: "Luna", avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "rare" as const },
+  { id: "g2", slug: "nova", displayName: "Nova", avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "exclusive" as const },
+  { id: "g3", slug: "aria", displayName: "Aria", avatarUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop&crop=face", isOnline: false, rarity: "common" as const },
+  { id: "g4", slug: "mia", displayName: "Mia", avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "rare" as const },
+  { id: "g5", slug: "jade", displayName: "Jade", avatarUrl: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&h=200&fit=crop&crop=face", isOnline: false, rarity: "common" as const },
+];
 
 export default function ChatShell({
   persona,
@@ -64,6 +163,7 @@ export default function ChatShell({
   initialMessages,
   initialConversationId,
   moments: initialMoments,
+  isAuthenticated = true,
 }: Props) {
   const router = useRouter();
 
@@ -85,6 +185,30 @@ export default function ChatShell({
   const [tension, setTension] = useState<TensionData | null>(null);
   const [showTensionExplainer, setShowTensionExplainer] = useState(false);
   const [tensionExplainerShown, setTensionExplainerShown] = useState(false);
+
+  // Auth state
+  const [showAuth, setShowAuth] = useState(false);
+  const [authenticated, setAuthenticated] = useState(isAuthenticated);
+
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingShown, setOnboardingShown] = useState(false);
+
+  // Event engine state
+  const [eventSession, setEventSession] = useState<EventSessionState>(createEventSessionState);
+  const [activeEvents, setActiveEvents] = useState<ActiveEvent[]>([]);
+  const [promotions] = useState<Promotion[]>(() => getDefaultPromotions(persona.id));
+  const lastActivityRef = useRef(Date.now());
+
+  // MediaShelf items from moments
+  const mediaShelfItems = moments.slice(0, 8).map((m) => ({
+    id: m.id,
+    title: m.title,
+    thumbnailUrl: m.thumbnail_url,
+    price: m.price,
+    mediaType: (m.media_type === "video" ? "video" : "photo") as "photo" | "video",
+    locked: !m.unlocked,
+  }));
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -120,8 +244,41 @@ export default function ChatShell({
     }
   }
 
+  // ── Event engine evaluation ──
+  const evaluateEvents = useCallback(() => {
+    const updatedSession = updateSessionState(eventSession, {
+      messageExchangeCount: Math.floor(messages.length / 2),
+      tensionScore: tension?.score ?? 0,
+      tensionBand: tension?.band ?? "warming_up",
+      inactivitySeconds: Math.floor((Date.now() - lastActivityRef.current) / 1000),
+    });
+
+    const decision = evaluateEventInjection(updatedSession, promotions);
+
+    if (decision.shouldInject && decision.promotion) {
+      const newEvent: ActiveEvent = {
+        id: `event-${Date.now()}`,
+        promotion: decision.promotion,
+        shownAt: Date.now(),
+      };
+
+      setActiveEvents((prev) => [...prev, newEvent]);
+      setEventSession(recordEvent(updatedSession, decision.promotion.id, decision.promotion.type));
+    } else {
+      setEventSession(updatedSession);
+    }
+  }, [eventSession, messages.length, tension, promotions]);
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
+
+    // Check auth - if not authenticated, show auth modal
+    if (!authenticated) {
+      setShowAuth(true);
+      return;
+    }
+
+    lastActivityRef.current = Date.now();
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -166,7 +323,7 @@ export default function ChatShell({
 
           // Show tension explainer on first tension update (first session only)
           if (!tensionExplainerShown && !initialMessages.length) {
-            const messageCount = messages.length + 2; // +2 for this exchange
+            const messageCount = messages.length + 2;
             if (messageCount >= 4 && messageCount <= 6) {
               setShowTensionExplainer(true);
               setTensionExplainerShown(true);
@@ -174,7 +331,7 @@ export default function ChatShell({
           }
         }
 
-        // Handle injected moment — add to moments list
+        // Handle injected moment
         if (data.injectedMoment) {
           const newMoment: Moment = {
             id: data.injectedMoment.id,
@@ -210,13 +367,17 @@ export default function ChatShell({
         if (data.continuationPrompt) {
           setContinuation(data.continuationPrompt);
         }
+
+        // ── Evaluate event injection after each AI reply ──
+        // Small delay to let state settle
+        setTimeout(() => evaluateEvents(), 500);
       }
     } catch (err) {
       console.error("Chat error:", err);
     } finally {
       setLoading(false);
     }
-  }, [loading, conversationId, persona.slug, persona.id, messages.length, tensionExplainerShown, initialMessages.length]);
+  }, [loading, conversationId, persona.slug, persona.id, messages.length, tensionExplainerShown, initialMessages.length, authenticated, evaluateEvents]);
 
   const dismissMomentToSidebar = useCallback((momentId: string) => {
     setMoments((prev) => {
@@ -268,6 +429,22 @@ export default function ChatShell({
     }
   }, [continuation, conversationId]);
 
+  // Dismiss event card
+  const dismissEvent = useCallback((eventId: string) => {
+    setActiveEvents((prev) => prev.filter((e) => e.id !== eventId));
+  }, []);
+
+  // Auth success handler
+  const handleAuthSuccess = useCallback(() => {
+    setShowAuth(false);
+    setAuthenticated(true);
+    // Show onboarding after first sign-in
+    if (!onboardingShown) {
+      setShowOnboarding(true);
+      setOnboardingShown(true);
+    }
+  }, [onboardingShown]);
+
   const sidebarBadgeCount = sidebarMoments.filter((m) => !m.unlocked).length;
 
   return (
@@ -278,10 +455,16 @@ export default function ChatShell({
         sidebarBadge={sidebarBadgeCount}
         onSidebarOpen={() => setSidebarOpen(true)}
         onBack={() => router.push("/")}
+        tensionScore={tension?.score}
       />
 
       {/* Tension Meter */}
       <TensionMeter tension={tension} personaName={persona.display_name} />
+
+      {/* Media Shelf */}
+      {mediaShelfItems.length > 0 && (
+        <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
+      )}
 
       {/* Messages */}
       <MessageList
@@ -291,6 +474,18 @@ export default function ChatShell({
         moments={moments}
         onDismissMoment={dismissMomentToSidebar}
         onUnlockMoment={unlockMoment}
+        activeEvents={activeEvents}
+        onDismissEvent={dismissEvent}
+        onEventAction={(eventId) => {
+          // Handle event interactions
+          if (!authenticated) {
+            setShowAuth(true);
+            return;
+          }
+          dismissEvent(eventId);
+        }}
+        discoveryGirls={DISCOVERY_GIRLS}
+        onGirlSelect={(slug) => router.push(`/chat/${slug}`)}
       />
 
       {/* Input */}
@@ -321,6 +516,23 @@ export default function ChatShell({
           <TensionExplainer
             personaName={persona.display_name}
             onDismiss={() => setShowTensionExplainer(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Auth modal */}
+      <AuthModal
+        open={showAuth}
+        onClose={() => setShowAuth(false)}
+        onSuccess={handleAuthSuccess}
+      />
+
+      {/* Onboarding overlay */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <OnboardingOverlay
+            personaName={persona.display_name}
+            onDismiss={() => setShowOnboarding(false)}
           />
         )}
       </AnimatePresence>

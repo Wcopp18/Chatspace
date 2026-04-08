@@ -35,3 +35,12 @@ export {
   selectCallback,
   generateCallbacks,
 } from "./memory-engine";
+
+export {
+  evaluateEventInjection,
+  createEventSessionState,
+  recordEvent,
+  updateSessionState,
+  getDefaultTriggerRules,
+  createDefaultPromotion,
+} from "./event-engine";
