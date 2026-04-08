@@ -65,7 +65,10 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
   async function handleOAuthLogin(provider: "apple" | "google") {
     setLoading(true);
     setError(null);
-    const redirectPath = window.location.pathname;
+    const redirectPath = window.location.pathname + window.location.search;
+    // Store redirect path in cookie so the server-side callback can read it
+    // (Supabase OAuth sometimes strips query params from redirectTo)
+    document.cookie = `auth_redirect=${encodeURIComponent(redirectPath)};path=/;max-age=600;SameSite=Lax`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {

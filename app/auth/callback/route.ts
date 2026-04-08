@@ -1,11 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") ?? "/";
   const origin = requestUrl.origin;
+
+  // Read redirect path from query param, falling back to cookie
+  // (Supabase OAuth can strip query params from redirectTo during the dance)
+  let next = requestUrl.searchParams.get("next");
+  if (!next) {
+    const cookieStore = await cookies();
+    const cookieValue = cookieStore.get("auth_redirect")?.value;
+    if (cookieValue) {
+      next = decodeURIComponent(cookieValue);
+    }
+  }
+  next = next ?? "/";
 
   if (code) {
     const supabase = await createClient();
@@ -19,7 +31,11 @@ export async function GET(request: Request) {
 
   // Only allow relative redirects to prevent open-redirect attacks
   const safeNext = next.startsWith("/") ? next : "/";
-  return NextResponse.redirect(`${origin}${safeNext}`);
+
+  // Clear the redirect cookie
+  const response = NextResponse.redirect(`${origin}${safeNext}`);
+  response.cookies.set("auth_redirect", "", { path: "/", maxAge: 0 });
+  return response;
 }
 
 // Handle Apple Sign-In form_post response mode
