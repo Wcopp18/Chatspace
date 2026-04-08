@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
 interface Props {
@@ -36,25 +36,30 @@ export default function TimerUrgencyCard({
   onDismiss,
   onExpire,
 }: Props) {
-  const [secondsLeft, setSecondsLeft] = useState(durationMinutes * 60);
+  // Use timestamp-based timer so remounts don't reset the countdown
+  const startedAtRef = useRef(Date.now());
+  const totalSeconds = durationMinutes * 60;
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+
+  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
   const [pressing, setPressing] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          onExpire?.();
-          return 0;
-        }
-        return prev - 1;
-      });
+      const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
+      const remaining = Math.max(0, totalSeconds - elapsed);
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        onExpireRef.current?.();
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [onExpire]);
+  }, [totalSeconds]); // stable dep — no stale closure on onExpire
 
-  const percentLeft = (secondsLeft / (durationMinutes * 60)) * 100;
-  const isUrgent = secondsLeft < 300; // under 5 min
+  const percentLeft = (secondsLeft / totalSeconds) * 100;
+  const isUrgent = secondsLeft < 300;
   const savings = Math.round(((originalPrice - promoPrice) / originalPrice) * 100);
 
   return (
@@ -75,14 +80,17 @@ export default function TimerUrgencyCard({
           }}
         />
 
-        {/* Dismiss */}
+        {/* Dismiss — large touch area around small visual target */}
         <button
           onClick={onDismiss}
-          className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-white/10 backdrop-blur flex items-center justify-center text-white/50 hover:text-white transition-colors"
+          className="absolute top-1 right-1 z-10 p-2"
+          aria-label="Dismiss"
         >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
-          </svg>
+          <span className="w-7 h-7 rounded-full bg-white/10 backdrop-blur flex items-center justify-center text-white/50 hover:text-white transition-colors">
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          </span>
         </button>
 
         <div className="p-4">

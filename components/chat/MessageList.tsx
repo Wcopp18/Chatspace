@@ -79,7 +79,6 @@ export default function MessageList({
   > = [];
 
   let momentIdx = 0;
-  let eventIdx = 0;
 
   messages.forEach((msg, i) => {
     items.push({ type: "message", msg });
@@ -90,22 +89,12 @@ export default function MessageList({
       items.push({ type: "moment", moment: moments[momentIdx] });
       momentIdx++;
     }
-
-    // Inject active events after AI messages (spaced out)
-    if (msg.role === "assistant" && eventIdx < activeEvents.length) {
-      // Show event after every 3rd AI message when there's one queued
-      const aiMessageCount = messages.slice(0, i + 1).filter(m => m.role === "assistant").length;
-      if (aiMessageCount >= 3 && aiMessageCount % 2 === 0) {
-        items.push({ type: "event", event: activeEvents[eventIdx] });
-        eventIdx++;
-      }
-    }
   });
 
-  // If there are remaining events not yet placed, add them at the end
-  while (eventIdx < activeEvents.length) {
-    items.push({ type: "event", event: activeEvents[eventIdx] });
-    eventIdx++;
+  // Event cards render after the last AI message — the engine handles pacing,
+  // so we just need to show them in the visible scroll area
+  for (const event of activeEvents) {
+    items.push({ type: "event", event });
   }
 
   return (

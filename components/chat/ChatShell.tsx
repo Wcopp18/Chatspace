@@ -13,11 +13,6 @@ import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
 import AuthModal from "@/components/auth/AuthModal";
 import OnboardingOverlay from "@/components/onboarding/OnboardingOverlay";
-import MediaTeaserCard from "./events/MediaTeaserCard";
-import TimerUrgencyCard from "./events/TimerUrgencyCard";
-import BundleRail from "./events/BundleRail";
-import GirlDiscoveryRail from "./events/GirlDiscoveryRail";
-import RewardProgressCard from "./events/RewardProgressCard";
 import {
   evaluateEventInjection,
   createEventSessionState,
@@ -71,19 +66,19 @@ export interface ChatMessage {
   content: string;
   createdAt: string;
   injectedMoment?: InjectedMoment;
-  eventCard?: ActiveEvent; // event surfaces injected between messages
+  eventCard?: ActiveEvent;
 }
 
 interface Props {
   persona: Persona;
-  userId: string | null; // null = unauthenticated deep-link user
+  userId: string | null;
   initialMessages: DBMessage[];
   initialConversationId: string | null;
   moments: Moment[];
   isAuthenticated?: boolean;
 }
 
-// Default promotions for demo (will come from DB/admin panel in production)
+// Default promotions for demo
 function getDefaultPromotions(personaId: string): Promotion[] {
   const now = new Date().toISOString();
   return [
@@ -148,13 +143,11 @@ function getDefaultPromotions(personaId: string): Promotion[] {
   ];
 }
 
-// Placeholder girl data for discovery rail
+// Only use girls that exist in the DB (luna, nova, aria)
 const DISCOVERY_GIRLS = [
   { id: "g1", slug: "luna", displayName: "Luna", avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "rare" as const },
   { id: "g2", slug: "nova", displayName: "Nova", avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "exclusive" as const },
   { id: "g3", slug: "aria", displayName: "Aria", avatarUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&h=200&fit=crop&crop=face", isOnline: false, rarity: "common" as const },
-  { id: "g4", slug: "mia", displayName: "Mia", avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face", isOnline: true, rarity: "rare" as const },
-  { id: "g5", slug: "jade", displayName: "Jade", avatarUrl: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&h=200&fit=crop&crop=face", isOnline: false, rarity: "common" as const },
 ];
 
 export default function ChatShell({
@@ -190,15 +183,26 @@ export default function ChatShell({
   const [showAuth, setShowAuth] = useState(false);
   const [authenticated, setAuthenticated] = useState(isAuthenticated);
 
-  // Onboarding
+  // Onboarding — persist in localStorage so it only shows once
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingShown, setOnboardingShown] = useState(false);
+  const [onboardingShown, setOnboardingShown] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("chatspace_onboarding") === "done";
+    return false;
+  });
 
-  // Event engine state
+  // Event engine state — use refs to avoid stale closures
   const [eventSession, setEventSession] = useState<EventSessionState>(createEventSessionState);
   const [activeEvents, setActiveEvents] = useState<ActiveEvent[]>([]);
   const [promotions] = useState<Promotion[]>(() => getDefaultPromotions(persona.id));
   const lastActivityRef = useRef(Date.now());
+
+  // Refs for stale closure fix
+  const eventSessionRef = useRef(eventSession);
+  eventSessionRef.current = eventSession;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const tensionRef = useRef(tension);
+  tensionRef.current = tension;
 
   // MediaShelf items from moments
   const mediaShelfItems = moments.slice(0, 8).map((m) => ({
@@ -210,10 +214,31 @@ export default function ChatShell({
     locked: !m.unlocked,
   }));
 
-  // Send intro message on first load if no history
+  // Show onboarding for newly authenticated users on first visit
+  useEffect(() => {
+    if (isAuthenticated && !onboardingShown) {
+      setShowOnboarding(true);
+      setOnboardingShown(true);
+      localStorage.setItem("chatspace_onboarding", "done");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Send intro message on first load — guard for auth
   useEffect(() => {
     if (!introSent && messages.length === 0) {
-      sendIntro();
+      if (authenticated) {
+        sendIntro();
+      } else {
+        // Static teaser for unauthenticated deep-link users
+        setMessages([{
+          id: "teaser-intro",
+          role: "assistant",
+          content: `Hey... I was hoping you'd find me here 💜`,
+          createdAt: new Date().toISOString(),
+        }]);
+        setIntroSent(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -244,12 +269,16 @@ export default function ChatShell({
     }
   }
 
-  // ── Event engine evaluation ──
+  // ── Event engine evaluation — uses refs to avoid stale closures ──
   const evaluateEvents = useCallback(() => {
-    const updatedSession = updateSessionState(eventSession, {
-      messageExchangeCount: Math.floor(messages.length / 2),
-      tensionScore: tension?.score ?? 0,
-      tensionBand: tension?.band ?? "warming_up",
+    const session = eventSessionRef.current;
+    const currentTension = tensionRef.current;
+    const currentMessages = messagesRef.current;
+
+    const updatedSession = updateSessionState(session, {
+      messageExchangeCount: Math.floor(currentMessages.length / 2),
+      tensionScore: currentTension?.score ?? 0,
+      tensionBand: currentTension?.band ?? "warming_up",
       inactivitySeconds: Math.floor((Date.now() - lastActivityRef.current) / 1000),
     });
 
@@ -263,11 +292,18 @@ export default function ChatShell({
       };
 
       setActiveEvents((prev) => [...prev, newEvent]);
-      setEventSession(recordEvent(updatedSession, decision.promotion.id, decision.promotion.type));
+      const newSession = recordEvent(updatedSession, decision.promotion.id, decision.promotion.type);
+      setEventSession(newSession);
+      eventSessionRef.current = newSession;
     } else {
       setEventSession(updatedSession);
+      eventSessionRef.current = updatedSession;
     }
-  }, [eventSession, messages.length, tension, promotions]);
+  }, [promotions]); // only depends on promotions (static)
+
+  // Keep ref in sync for setTimeout calls
+  const evaluateEventsRef = useRef(evaluateEvents);
+  evaluateEventsRef.current = evaluateEvents;
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return;
@@ -320,10 +356,10 @@ export default function ChatShell({
         // Update tension meter
         if (data.tension) {
           setTension(data.tension);
+          tensionRef.current = data.tension;
 
-          // Show tension explainer on first tension update (first session only)
           if (!tensionExplainerShown && !initialMessages.length) {
-            const messageCount = messages.length + 2;
+            const messageCount = messagesRef.current.length + 2;
             if (messageCount >= 4 && messageCount <= 6) {
               setShowTensionExplainer(true);
               setTensionExplainerShown(true);
@@ -368,16 +404,15 @@ export default function ChatShell({
           setContinuation(data.continuationPrompt);
         }
 
-        // ── Evaluate event injection after each AI reply ──
-        // Small delay to let state settle
-        setTimeout(() => evaluateEvents(), 500);
+        // Evaluate event injection — uses ref to avoid stale closure
+        setTimeout(() => evaluateEventsRef.current(), 500);
       }
     } catch (err) {
       console.error("Chat error:", err);
     } finally {
       setLoading(false);
     }
-  }, [loading, conversationId, persona.slug, persona.id, messages.length, tensionExplainerShown, initialMessages.length, authenticated, evaluateEvents]);
+  }, [loading, conversationId, persona.slug, persona.id, tensionExplainerShown, initialMessages.length, authenticated]);
 
   const dismissMomentToSidebar = useCallback((momentId: string) => {
     setMoments((prev) => {
@@ -429,21 +464,38 @@ export default function ChatShell({
     }
   }, [continuation, conversationId]);
 
-  // Dismiss event card
   const dismissEvent = useCallback((eventId: string) => {
     setActiveEvents((prev) => prev.filter((e) => e.id !== eventId));
   }, []);
 
-  // Auth success handler
+  // Auth success — full reload to get server data with new session
   const handleAuthSuccess = useCallback(() => {
     setShowAuth(false);
-    setAuthenticated(true);
-    // Show onboarding after first sign-in
+    // Store onboarding flag before reload
     if (!onboardingShown) {
-      setShowOnboarding(true);
-      setOnboardingShown(true);
+      localStorage.setItem("chatspace_onboarding_pending", "true");
     }
+    // Full reload to pick up server-side auth data
+    window.location.reload();
   }, [onboardingShown]);
+
+  const handleOnboardingDismiss = useCallback(() => {
+    setShowOnboarding(false);
+    localStorage.setItem("chatspace_onboarding", "done");
+    // Clear pending flag
+    localStorage.removeItem("chatspace_onboarding_pending");
+  }, []);
+
+  // Check for pending onboarding after auth redirect reload
+  useEffect(() => {
+    if (typeof window !== "undefined" && isAuthenticated) {
+      const pending = localStorage.getItem("chatspace_onboarding_pending");
+      if (pending === "true") {
+        setShowOnboarding(true);
+        localStorage.removeItem("chatspace_onboarding_pending");
+      }
+    }
+  }, [isAuthenticated]);
 
   const sidebarBadgeCount = sidebarMoments.filter((m) => !m.unlocked).length;
 
@@ -477,7 +529,6 @@ export default function ChatShell({
         activeEvents={activeEvents}
         onDismissEvent={dismissEvent}
         onEventAction={(eventId) => {
-          // Handle event interactions
           if (!authenticated) {
             setShowAuth(true);
             return;
@@ -521,18 +572,22 @@ export default function ChatShell({
       </AnimatePresence>
 
       {/* Auth modal */}
-      <AuthModal
-        open={showAuth}
-        onClose={() => setShowAuth(false)}
-        onSuccess={handleAuthSuccess}
-      />
+      <AnimatePresence>
+        {showAuth && (
+          <AuthModal
+            open={true}
+            onClose={() => setShowAuth(false)}
+            onSuccess={handleAuthSuccess}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Onboarding overlay */}
       <AnimatePresence>
         {showOnboarding && (
           <OnboardingOverlay
             personaName={persona.display_name}
-            onDismiss={() => setShowOnboarding(false)}
+            onDismiss={handleOnboardingDismiss}
           />
         )}
       </AnimatePresence>

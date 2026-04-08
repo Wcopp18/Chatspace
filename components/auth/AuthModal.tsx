@@ -65,17 +65,19 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
   async function handleOAuthLogin(provider: "apple" | "google") {
     setLoading(true);
     setError(null);
+    const redirectPath = window.location.pathname;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: provider === "apple" ? { response_mode: "form_post" } : undefined,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     });
     if (error) {
       setError(error.message);
       setLoading(false);
     }
+    // Reset loading if user comes back without completing OAuth (back button)
+    setTimeout(() => setLoading(false), 5000);
   }
 
   function switchView(v: AuthView) {
@@ -84,10 +86,9 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
     setSuccess(null);
   }
 
-  if (!open) return null;
-
   return (
     <AnimatePresence>
+      {open && (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -103,7 +104,7 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 300, damping: 35 }}
-          className="relative z-10 w-full max-w-md bg-[#13131F] border-t border-white/10 rounded-t-3xl sm:rounded-2xl sm:border sm:mx-4 overflow-hidden"
+          className="relative z-10 w-full max-w-md bg-[#13131F] border-t border-white/10 rounded-t-3xl sm:rounded-2xl sm:border sm:mx-4 overflow-y-auto max-h-[90dvh]"
         >
           {/* Glow */}
           <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-60 h-20 rounded-full bg-purple-500/15 blur-3xl pointer-events-none" />
@@ -273,6 +274,7 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
           </div>
         </motion.div>
       </motion.div>
+      )}
     </AnimatePresence>
   );
 }

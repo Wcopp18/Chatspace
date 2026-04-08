@@ -161,10 +161,5 @@ html {
 .snap-start { scroll-snap-align: start; }
 .snap-mandatory { scroll-snap-type: x mandatory; }
 
-/* Thumb-friendly touch targets */
-@media (pointer: coarse) {
-  button, a, [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
+/* Thumb-friendly: handled per-component via explicit sizing.
+   Global min-size breaks dismiss buttons, progress dots, and pills. */

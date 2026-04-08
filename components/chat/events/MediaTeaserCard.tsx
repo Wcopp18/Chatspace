@@ -37,14 +37,17 @@ export default function MediaTeaserCard({
         <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-pink-500/15 blur-3xl pointer-events-none" />
 
-        {/* Dismiss */}
+        {/* Dismiss — large touch area around small visual target */}
         <button
           onClick={onDismiss}
-          className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-white/10 backdrop-blur flex items-center justify-center text-white/50 hover:text-white transition-colors"
+          className="absolute top-1 right-1 z-10 p-2"
+          aria-label="Dismiss"
         >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
-          </svg>
+          <span className="w-7 h-7 rounded-full bg-white/10 backdrop-blur flex items-center justify-center text-white/50 hover:text-white transition-colors">
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          </span>
         </button>
 
         {/* Preview image */}
