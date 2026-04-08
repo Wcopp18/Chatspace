@@ -25,6 +25,20 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // If the URL has a ?code= param (Supabase OAuth redirect), exchange it for a session
+  const code = request.nextUrl.searchParams.get("code");
+  if (code && !request.nextUrl.pathname.startsWith("/auth/callback")) {
+    // Exchange the code for a session via the callback route
+    const callbackUrl = request.nextUrl.clone();
+    // Read redirect path from cookie
+    const authRedirect = request.cookies.get("auth_redirect")?.value;
+    const next = authRedirect ? decodeURIComponent(authRedirect) : "/";
+    callbackUrl.pathname = "/auth/callback";
+    callbackUrl.searchParams.set("code", code);
+    callbackUrl.searchParams.set("next", next);
+    return NextResponse.redirect(callbackUrl);
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
