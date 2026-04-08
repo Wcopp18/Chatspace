@@ -31,7 +31,7 @@ export function evaluateEventInjection(
     return { shouldInject: false, promotion: null, reason: "no_active_promotions" };
   }
 
-  // Base eligibility: need at least 5 message exchanges
+  // Base eligibility: need at least 3 message exchanges (per-type rules enforce higher)
   if (state.messageExchangeCount < 3) {
     return { shouldInject: false, promotion: null, reason: "too_few_messages" };
   }
@@ -180,7 +180,7 @@ function weightedRandomSelect(
     if (random <= 0) return promo;
   }
 
-  return scored[0].promo;
+  return scored[scored.length - 1].promo;
 }
 
 // ── Session state management ──

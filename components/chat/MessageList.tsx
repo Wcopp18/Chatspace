@@ -42,6 +42,7 @@ interface Props {
   activeEvents?: ActiveEvent[];
   onDismissEvent?: (id: string) => void;
   onEventAction?: (eventId: string) => void;
+  messageExchangeCount?: number;
   discoveryGirls?: GirlInfo[];
   onGirlSelect?: (slug: string) => void;
 }
@@ -62,14 +63,16 @@ export default function MessageList({
   activeEvents = [],
   onDismissEvent,
   onEventAction,
+  messageExchangeCount = 0,
   discoveryGirls = [],
   onGirlSelect,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Only auto-scroll on new messages or typing — not on event injection
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading, activeEvents.length]);
+  }, [messages, isLoading]);
 
   // Build interleaved list
   const items: Array<
@@ -147,6 +150,7 @@ export default function MessageList({
                   onAction={() => onEventAction?.(item.event.id)}
                   discoveryGirls={discoveryGirls}
                   onGirlSelect={onGirlSelect}
+                  messageExchangeCount={messageExchangeCount}
                 />
               );
             }
@@ -174,12 +178,14 @@ function EventCardRenderer({
   onAction,
   discoveryGirls,
   onGirlSelect,
+  messageExchangeCount = 0,
 }: {
   event: ActiveEvent;
   onDismiss: () => void;
   onAction: () => void;
   discoveryGirls: GirlInfo[];
   onGirlSelect?: (slug: string) => void;
+  messageExchangeCount?: number;
 }) {
   const promo = event.promotion;
 
@@ -233,16 +239,20 @@ function EventCardRenderer({
         />
       );
 
-    case "reward_progress":
+    case "reward_progress": {
+      const required = promo.requiredActions || 5;
+      const progress = Math.min(1, messageExchangeCount / required);
+      const remaining = Math.max(0, required - messageExchangeCount);
       return (
         <RewardProgressCard
           progressCopy={promo.progressCopy || promo.title}
           nextRewardLabel={promo.nextRewardLabel}
-          currentProgress={0.6}
-          stepsRemaining={2}
+          currentProgress={progress}
+          stepsRemaining={remaining}
           onDismiss={onDismiss}
         />
       );
+    }
 
     default:
       return null;

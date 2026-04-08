@@ -464,8 +464,21 @@ export default function ChatShell({
     }
   }, [continuation, conversationId]);
 
+  // Dismiss event — record in history so maxPerSession counts it
   const dismissEvent = useCallback((eventId: string) => {
-    setActiveEvents((prev) => prev.filter((e) => e.id !== eventId));
+    setActiveEvents((prev) => {
+      const event = prev.find((e) => e.id === eventId);
+      if (event) {
+        const newSession = recordEvent(
+          eventSessionRef.current,
+          event.promotion.id,
+          event.promotion.type,
+        );
+        setEventSession(newSession);
+        eventSessionRef.current = newSession;
+      }
+      return prev.filter((e) => e.id !== eventId);
+    });
   }, []);
 
   // Auth success — full reload to get server data with new session
@@ -528,6 +541,7 @@ export default function ChatShell({
         onUnlockMoment={unlockMoment}
         activeEvents={activeEvents}
         onDismissEvent={dismissEvent}
+        messageExchangeCount={Math.floor(messages.length / 2)}
         onEventAction={(eventId) => {
           if (!authenticated) {
             setShowAuth(true);
