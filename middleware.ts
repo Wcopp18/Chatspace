@@ -28,8 +28,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
 
-  // Public routes
-  const publicRoutes = ["/login", "/signup", "/auth/callback"];
+  // Public routes — allow unauthenticated access
+  const publicRoutes = ["/login", "/signup", "/auth/callback", "/auth/signout", "/forgot-password", "/chat/"];
   const isPublic = publicRoutes.some((r) => pathname.startsWith(r));
 
   if (!user && !isPublic) {
