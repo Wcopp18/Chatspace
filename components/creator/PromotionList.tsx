@@ -38,10 +38,12 @@ export default function PromotionList({ onEdit, onCreate, refreshKey }: Props) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchPromotions = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/promotions");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setPromotions(data.promotions || []);
+      if (data.promotions) setPromotions(data.promotions);
     } catch (err) {
       console.error("Fetch promotions error:", err);
     } finally {
@@ -61,8 +63,9 @@ export default function PromotionList({ onEdit, onCreate, refreshKey }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, promotionId }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setPromotions(data.promotions || []);
+      if (data.promotions) setPromotions(data.promotions);
     } catch (err) {
       console.error("Action error:", err);
     } finally {

@@ -39,8 +39,8 @@ export default function PromotionsPage() {
   async function handleSave(data: Partial<Promotion>) {
     setSaving(true);
     try {
-      const action = view === "create" ? "create" : "update";
-      await fetch("/api/promotions", {
+      const action = editingPromo?.id ? "update" : "create";
+      const res = await fetch("/api/promotions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -49,6 +49,10 @@ export default function PromotionsPage() {
           promotionId: editingPromo?.id,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
       setView("list");
       setEditingPromo(null);
       setRefreshKey((k) => k + 1);

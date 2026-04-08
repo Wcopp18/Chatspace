@@ -57,6 +57,13 @@ export default function PromotionEditor({
   const [requiredActions, setRequiredActions] = useState(promotion?.requiredActions ?? 5);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>(promotion?.personaIds ?? []);
   const [showPreview, setShowPreview] = useState(false);
+  // Preserve fields that exist on Promotion but have no UI editor yet
+  const [description] = useState(promotion?.description ?? "");
+  const [ctaAction] = useState(promotion?.ctaAction ?? "unlock");
+  const [previewVideoUrl] = useState(promotion?.previewVideoUrl ?? "");
+  const [bundleItems] = useState(promotion?.bundleItems ?? []);
+  const [recommendedPersonaIds] = useState(promotion?.recommendedPersonaIds ?? []);
+  const [status, setStatus] = useState(promotion?.status ?? "active");
 
   // Trigger rules
   const defaultRules = getDefaultTriggerRules(type);
@@ -90,23 +97,35 @@ export default function PromotionEditor({
   }
 
   function handleSave() {
+    // Basic validation
+    if (!title.trim()) return;
+    if (type === "timer_urgency" && timerDuration <= 0) return;
+    if (triggerRules.cooldownMinutes <= 0) return;
+    if (type === "reward_progress" && requiredActions <= 0) return;
+
     onSave({
       type,
       title,
       subtitle,
+      description,
       headline,
       ctaText,
+      ctaAction,
       previewImageUrl: previewImageUrl || null,
+      previewVideoUrl: previewVideoUrl || null,
       originalPrice,
       promoPrice,
       timerDurationMinutes: timerDuration,
       bundleTitle,
+      bundleItems,
+      recommendedPersonaIds,
       progressCopy,
       nextRewardLabel,
       requiredActions,
       personaIds: selectedPersonaIds,
       personaId: selectedPersonaIds[0] ?? null,
       triggerRules,
+      status: status as "active" | "disabled" | "archived",
     });
   }
 

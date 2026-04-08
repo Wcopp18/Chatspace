@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
   switch (action) {
     case "create": {
       const newPromo = {
+        status: "active",
         ...promotion,
         id: uuidv4(),
         createdAt: new Date().toISOString(),
@@ -115,16 +116,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
-  // Upsert
+  // Upsert — check for DB errors
+  let dbError;
   if (existing) {
-    await supabase
+    ({ error: dbError } = await supabase
       .from("creator_settings")
       .update({ setting_value: promotions, updated_at: new Date().toISOString() })
-      .eq("setting_key", "promotions");
+      .eq("setting_key", "promotions"));
   } else {
-    await supabase
+    ({ error: dbError } = await supabase
       .from("creator_settings")
-      .insert({ setting_key: "promotions", setting_value: promotions });
+      .insert({ setting_key: "promotions", setting_value: promotions }));
+  }
+
+  if (dbError) {
+    return NextResponse.json({ error: "Failed to save", detail: dbError.message }, { status: 500 });
   }
 
   return NextResponse.json({ promotions });
