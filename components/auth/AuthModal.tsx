@@ -66,13 +66,14 @@ export default function AuthModal({ open, onClose, onSuccess, initialView = "log
     setLoading(true);
     setError(null);
     const redirectPath = window.location.pathname + window.location.search;
-    // Store redirect path in cookie so the server-side callback can read it
-    // (Supabase OAuth sometimes strips query params from redirectTo)
-    document.cookie = `auth_redirect=${encodeURIComponent(redirectPath)};path=/;max-age=600;SameSite=Lax`;
+    // Use the production URL for OAuth redirectTo because Supabase only
+    // whitelists production — preview domains get ignored and Supabase
+    // falls back to Site URL (production root) without our query params.
+    const prodOrigin = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
+        redirectTo: `${prodOrigin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       },
     });
     if (error) {
