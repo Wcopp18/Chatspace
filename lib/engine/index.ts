@@ -13,13 +13,26 @@ export {
 
 export {
   getTensionBand,
-  calculateTensionDelta,
+  calculateVisibleDelta,
   analyzeFlirtIntensity,
+  analyzeMessage,
+  analyzeEmotionalOpenness,
   calculateCooldownDrop,
   calculateRevealProbability,
+  calculateRewardMomentum,
+  evaluatePremiumEvent,
+  selectPhrase,
+  isSessionExpired,
+  createFreshSessionState,
   updateTension,
   getOrCreateTensionState,
+  getRewardDrop,
   type TensionUpdateResult,
+  type MessageAnalysis,
+  type SessionState,
+  type PremiumEventDecision,
+  type PremiumEventType,
+  type PhraseResult,
 } from "./tension-engine";
 
 export {

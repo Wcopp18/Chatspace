@@ -7,7 +7,7 @@ import {
   routeResponse,
   recordResponseUsage,
   logRoutingDecision,
-  analyzeFlirtIntensity,
+  analyzeMessage,
   updateTension,
   getTensionBand,
   selectMomentForInjection,
@@ -177,19 +177,19 @@ export async function POST(request: NextRequest) {
     await supabase.from("messages").insert({ conversation_id: convId, role: "user", content: message });
     await supabase.from("messages").insert({ conversation_id: convId, role: "assistant", content: aiResponse, source: responseSource });
 
-    // ── STEP 4: Update tension (safe — won't crash if it fails) ──
-    let tensionResult: { newScore: number; newBand: string; delta: number; previousBand: string; rewardTriggered: boolean; previousScore: number; revealProbability: number } = { newScore: 0, newBand: "warming_up", delta: 0, previousBand: "warming_up", rewardTriggered: false, previousScore: 0, revealProbability: 0 };
+    // ── STEP 4: Update tension (v2 — two-layer system, safe) ──
+    let tensionResult: { newScore: number; newBand: string; delta: number; previousBand: string; rewardTriggered: boolean; previousScore: number; revealProbability: number; phrase?: { phrase: string | null; type: string | null } | null } = { newScore: 18, newBand: "warming_up", delta: 0, previousBand: "warming_up", rewardTriggered: false, previousScore: 18, revealProbability: 0, phrase: null };
     try {
       const lastMessageTime = messageHistory && messageHistory.length > 0
         ? new Date(messageHistory[messageHistory.length - 1].created_at).getTime()
         : Date.now();
-      const responseSpeed = (Date.now() - lastMessageTime) / 1000;
-      const flirtIntensity = analyzeFlirtIntensity(message);
+      const responseSpeedSeconds = (Date.now() - lastMessageTime) / 1000;
 
+      const analysis = analyzeMessage(message);
       tensionResult = await updateTension(supabase, user.id, persona.id, convId, {
-        messageLength: message.length, flirtIntensity, toneMatch: 0.5, responseSpeed,
-        isRepetitive: false, isOffTopic: false, personaMoodMultiplier: 1.0,
-        recentUnlockCooldown: false, streakDays: 0, totalPurchases: 0,
+        ...analysis,
+        responseSpeedSeconds,
+        justUnlockedReward: false,
       });
     } catch (e) { console.error("Tension update error:", e); }
 
@@ -262,6 +262,7 @@ export async function POST(request: NextRequest) {
         score: tensionResult.newScore, band: tensionResult.newBand,
         delta: tensionResult.delta, previousBand: tensionResult.previousBand,
         rewardTriggered: tensionResult.rewardTriggered,
+        phrase: tensionResult.phrase,
       },
       injectedMoment,
       showCustomRequestCard,

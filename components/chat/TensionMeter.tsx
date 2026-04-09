@@ -11,6 +11,7 @@ interface TensionData {
   delta: number;
   previousBand: TensionBand;
   rewardTriggered: boolean;
+  phrase?: { phrase: string | null; type: "rising" | "dip" | "foreshadow" | null } | null;
 }
 
 interface Props {
@@ -25,12 +26,32 @@ const ZONE_LABELS: { key: TensionBand; label: string; emoji: string }[] = [
   { key: "video_zone", label: "Video Zone", emoji: "🎬" },
 ];
 
+function getPhraseGlow(type: "rising" | "dip" | "foreshadow" | null): string {
+  switch (type) {
+    case "rising": return "0 0 12px rgba(139,92,246,0.6), 0 0 24px rgba(139,92,246,0.3)";
+    case "dip": return "0 0 12px rgba(239,68,68,0.5), 0 0 24px rgba(239,68,68,0.2)";
+    case "foreshadow": return "0 0 16px rgba(255,215,0,0.6), 0 0 32px rgba(255,165,0,0.3)";
+    default: return "none";
+  }
+}
+
+function getPhraseColor(type: "rising" | "dip" | "foreshadow" | null): string {
+  switch (type) {
+    case "rising": return "#C4B5FD";     // soft purple
+    case "dip": return "#FCA5A5";        // soft red
+    case "foreshadow": return "#FFD700"; // gold
+    default: return "#FFFFFF";
+  }
+}
+
 export default function TensionMeter({ tension, personaName }: Props) {
   const [displayScore, setDisplayScore] = useState(0);
   const [showDelta, setShowDelta] = useState(false);
   const [shake, setShake] = useState(false);
   const [showBolt, setShowBolt] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
+  const [showPhrase, setShowPhrase] = useState(false);
+  const [currentPhrase, setCurrentPhrase] = useState<{ phrase: string; type: "rising" | "dip" | "foreshadow" } | null>(null);
   const prevScore = useRef(0);
 
   useEffect(() => {
@@ -54,6 +75,19 @@ export default function TensionMeter({ tension, personaName }: Props) {
 
       const deltaTimer = setTimeout(() => setShowDelta(false), 2500);
       const shakeTimer = setTimeout(() => setShake(false), 600);
+
+      // Cinematic phrase
+      if (tension.phrase?.phrase && tension.phrase.type) {
+        setCurrentPhrase({ phrase: tension.phrase.phrase, type: tension.phrase.type });
+        setShowPhrase(true);
+        const phraseTimer = setTimeout(() => setShowPhrase(false), 2400);
+        return () => {
+          clearTimeout(deltaTimer);
+          clearTimeout(shakeTimer);
+          clearTimeout(phraseTimer);
+        };
+      }
+
       return () => {
         clearTimeout(deltaTimer);
         clearTimeout(shakeTimer);
@@ -67,13 +101,36 @@ export default function TensionMeter({ tension, personaName }: Props) {
 
   return (
     <motion.div
-      className="px-4 pt-3 pb-4"
+      className="px-4 pt-3 pb-4 relative"
       animate={shake ? (isNegative
         ? { x: [0, -6, 6, -4, 4, -2, 0] }
         : { x: [0, -3, 5, -4, 3, -2, 1, 0] }
       ) : {}}
       transition={{ duration: isNegative ? 0.5 : 0.4 }}
     >
+      {/* ── Cinematic phrase overlay ── */}
+      <AnimatePresence>
+        {showPhrase && currentPhrase && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.35, exit: { duration: 0.5 } }}
+            className="absolute inset-x-0 -top-1 z-10 flex justify-center pointer-events-none"
+          >
+            <span
+              className="text-sm font-bold italic tracking-wide px-4 py-1.5"
+              style={{
+                color: getPhraseColor(currentPhrase.type),
+                textShadow: getPhraseGlow(currentPhrase.type),
+              }}
+            >
+              {currentPhrase.phrase}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Title + Score */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
