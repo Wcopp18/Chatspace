@@ -32,12 +32,12 @@ export default function PersonaHeader({ persona, sidebarBadge, onSidebarOpen, on
       <div className="flex items-center gap-3 max-w-lg mx-auto">
         {/* Avatar — large rectangle, vibrant */}
         <div className="relative flex-shrink-0">
-          <div className="w-14 h-16 rounded-xl overflow-hidden ring-2 ring-[#8B5CF6]/40">
+          <div className="w-20 h-24 rounded-xl overflow-hidden ring-2 ring-[#8B5CF6]/40">
             <Image
               src={avatarUrl}
               alt={persona.display_name}
-              width={112}
-              height={128}
+              width={160}
+              height={192}
               className="w-full h-full object-cover brightness-110 contrast-105 saturate-110"
               unoptimized
               priority
