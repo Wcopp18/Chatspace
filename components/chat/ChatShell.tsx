@@ -8,6 +8,7 @@ import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
 import TensionMeter from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
+import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
 import CustomRequestCard from "./CustomRequestCard";
@@ -80,6 +81,16 @@ export default function ChatShell({
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moments, setMoments] = useState<Moment[]>(initialMoments);
+
+  // MediaShelf items from moments
+  const mediaShelfItems = moments.slice(0, 8).map((m) => ({
+    id: m.id,
+    title: m.title,
+    thumbnailUrl: m.thumbnail_url,
+    price: m.price,
+    mediaType: (m.media_type === "video" ? "video" : "photo") as "photo" | "video",
+    locked: !m.unlocked,
+  }));
   const [sidebarMoments, setSidebarMoments] = useState<Moment[]>([]);
   const [continuation, setContinuation] = useState<ContinuationData | null>(null);
   const [introSent, setIntroSent] = useState(initialMessages.length > 0);
@@ -289,6 +300,9 @@ export default function ChatShell({
 
       {/* Tension Meter */}
       <TensionMeter tension={tension} personaName={persona.display_name} />
+
+      {/* Media Shelf — always visible */}
+      <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
 
       {/* Messages */}
       <MessageList
