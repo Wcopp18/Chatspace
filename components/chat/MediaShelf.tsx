@@ -23,16 +23,24 @@ export default function MediaShelf({ items, onUnlock }: Props) {
     activeTab === "photos" ? item.mediaType === "photo" : item.mediaType === "video"
   );
 
+  const photoCount = items.filter((i) => i.mediaType === "photo").length;
+  const videoCount = items.filter((i) => i.mediaType === "video").length;
+
   return (
-    <div className="my-3">
-      {/* Tab toggle */}
-      <div className="flex items-center gap-2 px-4 mb-3">
+    <div
+      className="flex-shrink-0 border-b border-white/5"
+      style={{
+        background: "linear-gradient(180deg, rgba(139,92,246,0.08) 0%, rgba(13,13,26,0) 100%)",
+      }}
+    >
+      {/* Tab toggle — always visible */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
         <button
           onClick={() => setActiveTab("photos")}
-          className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+          className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             activeTab === "photos"
-              ? "text-white"
-              : "bg-transparent text-white/40 hover:text-white/60"
+              ? "text-white shadow-lg shadow-purple-500/30"
+              : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
           }`}
           style={
             activeTab === "photos"
@@ -40,14 +48,24 @@ export default function MediaShelf({ items, onUnlock }: Props) {
               : undefined
           }
         >
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
           Photos
+          {photoCount > 0 && (
+            <span className={`text-[10px] ${activeTab === "photos" ? "text-white/70" : "text-white/30"}`}>
+              {photoCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("videos")}
-          className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
+          className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             activeTab === "videos"
-              ? "text-white"
-              : "bg-transparent text-white/40 hover:text-white/60"
+              ? "text-white shadow-lg shadow-purple-500/30"
+              : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
           }`}
           style={
             activeTab === "videos"
@@ -55,77 +73,109 @@ export default function MediaShelf({ items, onUnlock }: Props) {
               : undefined
           }
         >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path d="M23 7l-7 5 7 5V7z" />
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
           </svg>
           Videos
+          {videoCount > 0 && (
+            <span className={`text-[10px] ${activeTab === "videos" ? "text-white/70" : "text-white/30"}`}>
+              {videoCount}
+            </span>
+          )}
         </button>
       </div>
 
       {/* Horizontal scroll row */}
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2 no-scrollbar">
-        {filteredItems.length === 0 && (
-          <div className="flex-shrink-0 w-full text-center py-6 text-white/30 text-sm">
-            No {activeTab} available yet
+      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+        {filteredItems.length === 0 ? (
+          <div className="flex-shrink-0 w-full flex items-center justify-center py-6 text-white/30 text-xs italic">
+            {activeTab === "photos"
+              ? "Keep chatting to unlock her photos..."
+              : "Keep chatting to unlock her videos..."}
           </div>
-        )}
-        {filteredItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => item.locked && onUnlock?.(item.id)}
-            className="flex-shrink-0 w-36 group"
-          >
-            {/* Card */}
-            <div className="relative w-36 h-48 rounded-xl overflow-hidden border border-white/10">
-              {/* Blurred background image */}
+        ) : (
+          filteredItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => item.locked && onUnlock?.(item.id)}
+              className="flex-shrink-0 w-32 group"
+            >
+              {/* Card */}
               <div
-                className="absolute inset-0 bg-[#2A2A3E] bg-cover bg-center"
-                style={
-                  item.thumbnailUrl
-                    ? {
-                        backgroundImage: `url(${item.thumbnailUrl})`,
-                        filter: item.locked ? "blur(16px) brightness(0.5)" : "none",
-                      }
-                    : undefined
-                }
-              />
+                className="relative w-32 h-40 rounded-xl overflow-hidden border"
+                style={{
+                  borderColor: "rgba(139,92,246,0.25)",
+                  boxShadow: "0 4px 16px rgba(139,92,246,0.15)",
+                }}
+              >
+                {/* Blurred background image */}
+                <div
+                  className="absolute inset-0 bg-[#2A1B4E] bg-cover bg-center"
+                  style={
+                    item.thumbnailUrl
+                      ? {
+                          backgroundImage: `url(${item.thumbnailUrl})`,
+                          filter: item.locked ? "blur(16px) brightness(0.55)" : "none",
+                        }
+                      : {
+                          background:
+                            "linear-gradient(135deg, rgba(139,92,246,0.3), rgba(168,85,247,0.2))",
+                        }
+                  }
+                />
 
-              {/* Lock overlay */}
-              {item.locked && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                  {/* Lock icon circle */}
+                {/* Purple gradient overlay for locked items */}
+                {item.locked && (
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    className="absolute inset-0"
                     style={{
-                      background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
+                      background:
+                        "linear-gradient(180deg, rgba(139,92,246,0.1) 0%, rgba(13,13,26,0.4) 100%)",
                     }}
-                  >
-                    <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0110 0v4" />
+                  />
+                )}
+
+                {/* Lock overlay */}
+                {item.locked && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    {/* Lock icon circle */}
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40"
+                      style={{
+                        background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
+                      }}
+                    >
+                      <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                      </svg>
+                    </div>
+
+                    {/* Price badge */}
+                    <div
+                      className="px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-lg shadow-purple-500/40"
+                      style={{
+                        background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
+                      }}
+                    >
+                      ${item.price.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Video play indicator */}
+                {!item.locked && item.mediaType === "video" && (
+                  <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                    <svg width="10" height="10" fill="white" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
-
-                  {/* Price badge */}
-                  <div
-                    className="px-3 py-1 rounded-full text-white text-xs font-bold shadow-lg shadow-purple-500/30"
-                    style={{
-                      background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
-                    }}
-                  >
-                    ${item.price.toFixed(2)}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Title below card */}
-            <p className="text-white/60 text-xs mt-1.5 truncate text-center group-hover:text-white/80 transition-colors">
-              {item.title}
-            </p>
-          </button>
-        ))}
+                )}
+              </div>
+            </button>
+          ))
+        )}
       </div>
     </div>
   );

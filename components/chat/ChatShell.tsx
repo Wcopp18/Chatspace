@@ -526,10 +526,8 @@ export default function ChatShell({
       {/* Tension Meter */}
       <TensionMeter tension={tension} personaName={persona.display_name} />
 
-      {/* Media Shelf */}
-      {mediaShelfItems.length > 0 && (
-        <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
-      )}
+      {/* Media Shelf — always visible */}
+      <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
 
       {/* Messages */}
       <MessageList
