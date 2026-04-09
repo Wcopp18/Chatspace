@@ -67,7 +67,7 @@ export default function TensionMeter({ tension, personaName }: Props) {
 
   return (
     <motion.div
-      className="px-4 pt-2 pb-3"
+      className="px-4 pt-3 pb-4"
       animate={shake ? (isNegative
         ? { x: [0, -6, 6, -4, 4, -2, 0] }
         : { x: [0, -3, 5, -4, 3, -2, 1, 0] }
@@ -75,10 +75,10 @@ export default function TensionMeter({ tension, personaName }: Props) {
       transition={{ duration: isNegative ? 0.5 : 0.4 }}
     >
       {/* Title + Score */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
           <span
-            className="text-xs font-bold tracking-widest uppercase"
+            className="text-sm font-bold tracking-widest uppercase"
             style={{
               background: "linear-gradient(to right, #FFD700, #FFA500)",
               WebkitBackgroundClip: "text",
@@ -95,7 +95,7 @@ export default function TensionMeter({ tension, personaName }: Props) {
                 animate={{ opacity: 1, scale: 1.4, rotate: 0 }}
                 exit={{ opacity: 0, scale: 0, rotate: 30 }}
                 transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                className="text-sm"
+                className="text-base"
                 style={{ filter: "drop-shadow(0 0 6px #FFD700)" }}
               >
                 ⚡
@@ -133,7 +133,7 @@ export default function TensionMeter({ tension, personaName }: Props) {
           </AnimatePresence>
           {/* Score number */}
           <motion.span
-            className={`text-sm font-bold tabular-nums ${isNegative && shake ? "text-red-400" : "text-white/90"}`}
+            className={`text-base font-bold tabular-nums ${isNegative && shake ? "text-red-400" : "text-white/90"}`}
             animate={shake ? (isNegative
               ? { scale: [1, 0.8, 1.1, 1] }
               : { scale: [1, 1.3, 1] }
@@ -147,7 +147,7 @@ export default function TensionMeter({ tension, personaName }: Props) {
 
       {/* Progress bar */}
       <motion.div
-        className="relative h-4 bg-white/8 rounded-full overflow-hidden border border-white/5"
+        className="relative h-6 bg-white/8 rounded-full overflow-hidden border border-white/5"
         animate={shake && !isNegative
           ? { boxShadow: ["0 0 0px rgba(139,92,246,0)", "0 0 20px rgba(139,92,246,0.6)", "0 0 0px rgba(139,92,246,0)"] }
           : shake && isNegative
@@ -183,7 +183,7 @@ export default function TensionMeter({ tension, personaName }: Props) {
 
         {/* Glowing tip */}
         <motion.div
-          className="absolute top-0 bottom-0 w-6 rounded-full"
+          className="absolute top-0 bottom-0 w-8 rounded-full"
           style={{
             background: isNegative && shake
               ? "radial-gradient(circle, rgba(239,68,68,0.8) 0%, transparent 70%)"
@@ -213,13 +213,13 @@ export default function TensionMeter({ tension, personaName }: Props) {
       </motion.div>
 
       {/* Zone labels */}
-      <div className="flex justify-between mt-2.5">
+      <div className="flex justify-between mt-3">
         {ZONE_LABELS.map((zone) => {
           const isActive = tension.band === zone.key;
           return (
             <motion.span
               key={zone.key}
-              className={`text-[10px] font-semibold transition-colors ${
+              className={`text-[11px] font-semibold transition-colors ${
                 isActive ? "text-white" : "text-white/25"
               }`}
               animate={isActive && shake ? { scale: [1, 1.15, 1] } : {}}
