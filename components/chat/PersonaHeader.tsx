@@ -6,9 +6,9 @@ import type { Database } from "@/types/database";
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
-  luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
-  nova: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop&crop=face",
-  aria: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop&crop=face",
+  luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&h=800&q=95&fit=crop&crop=face",
+  nova: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&h=800&q=95&fit=crop&crop=face",
+  aria: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800&h=800&q=95&fit=crop&crop=face",
 };
 
 interface Props {
@@ -30,19 +30,20 @@ export default function PersonaHeader({ persona, sidebarBadge, onSidebarOpen, on
   return (
     <header className="flex-shrink-0 bg-[#0D0D1A] border-b border-white/5 px-4 py-3 safe-top z-30">
       <div className="flex items-center gap-3 max-w-lg mx-auto">
-        {/* Avatar with online dot */}
+        {/* Avatar — large rectangle, vibrant */}
         <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 rounded-full overflow-hidden">
+          <div className="w-14 h-16 rounded-xl overflow-hidden ring-2 ring-[#8B5CF6]/40">
             <Image
               src={avatarUrl}
               alt={persona.display_name}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover"
+              width={112}
+              height={128}
+              className="w-full h-full object-cover brightness-110 contrast-105 saturate-110"
               unoptimized
+              priority
             />
           </div>
-          <div className="absolute bottom-0 left-0 w-3 h-3 bg-[#22C55E] border-2 border-[#0D0D1A] rounded-full" />
+          <div className="absolute -bottom-0.5 -left-0.5 w-3.5 h-3.5 bg-[#22C55E] border-2 border-[#0D0D1A] rounded-full" />
         </div>
 
         {/* Persona name + mood */}
