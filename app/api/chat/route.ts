@@ -7,7 +7,7 @@ import {
   routeResponse,
   recordResponseUsage,
   logRoutingDecision,
-  analyzeFlirtIntensity,
+  analyzeMessage,
   updateTension,
   getTensionBand,
   selectMomentForInjection,
@@ -191,25 +191,17 @@ export async function POST(request: NextRequest) {
       prewritten_response_id: routingDecision.prewrittenResponse?.id || null,
     });
 
-    // ── STEP 4: Update tension ──
+    // ── STEP 4: Update tension (v2 — two-layer system) ──
     const lastMessageTime = messageHistory && messageHistory.length > 0
       ? new Date(messageHistory[messageHistory.length - 1].created_at).getTime()
       : Date.now();
-    const responseSpeed = (Date.now() - lastMessageTime) / 1000;
+    const responseSpeedSeconds = (Date.now() - lastMessageTime) / 1000;
 
-    const flirtIntensity = analyzeFlirtIntensity(message);
-
+    const analysis = analyzeMessage(message);
     const tensionResult = await updateTension(supabase, user.id, persona.id, convId, {
-      messageLength: message.length,
-      flirtIntensity,
-      toneMatch: 0.5, // Default — could be enhanced with NLP
-      responseSpeed,
-      isRepetitive: false, // Could be enhanced with dedup check
-      isOffTopic: false,   // Could be enhanced with topic continuity check
-      personaMoodMultiplier: 1.0,
-      recentUnlockCooldown: false,
-      streakDays: 0,
-      totalPurchases: 0,
+      ...analysis,
+      responseSpeedSeconds,
+      justUnlockedReward: false, // TODO: track from previous exchange
     });
 
     // ── STEP 5: Check for premium moment injection ──
@@ -305,6 +297,7 @@ export async function POST(request: NextRequest) {
         delta: tensionResult.delta,
         previousBand: tensionResult.previousBand,
         rewardTriggered: tensionResult.rewardTriggered,
+        phrase: tensionResult.phrase,
       },
       injectedMoment,
       continuationPrompt: continuationPrompt ? {
