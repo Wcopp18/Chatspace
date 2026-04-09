@@ -43,6 +43,7 @@ export default async function CreatorPersonaPage({ params }: Props) {
       phrases={phrases || []}
       moments={moments || []}
       continuationPrompts={continuationPrompts || []}
+      personaId={persona.id}
     />
   );
 }

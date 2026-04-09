@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { Database } from "@/types/database";
@@ -15,9 +15,10 @@ interface Props {
   phrases: Phrase[];
   moments: Moment[];
   continuationPrompts: ContinuationPrompt[];
+  personaId?: string;
 }
 
-type Tab = "profile" | "phrases" | "moments" | "continuation";
+type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions";
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
   luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
@@ -25,7 +26,7 @@ const PLACEHOLDER_AVATARS: Record<string, string> = {
   aria: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop&crop=face",
 };
 
-export default function PersonaEditor({ persona, phrases: initialPhrases, moments: initialMoments, continuationPrompts: initialPrompts }: Props) {
+export default function PersonaEditor({ persona, phrases: initialPhrases, moments: initialMoments, continuationPrompts: initialPrompts, personaId }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
@@ -71,11 +72,16 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
     } finally { setUploadingAvatar(false); }
   }
 
+  const [promoRefreshKey, setPromoRefreshKey] = useState(0);
+  const [editingPromo, setEditingPromo] = useState<import("@/types/promotions").Promotion | null>(null);
+  const [showPromoEditor, setShowPromoEditor] = useState(false);
+
   const TABS: { id: Tab; label: string; count?: number }[] = [
     { id: "profile", label: "Profile" },
     { id: "phrases", label: "Phrases", count: phrases.filter(p => p.is_active).length },
     { id: "moments", label: "Moments", count: moments.filter(m => m.is_active).length },
     { id: "continuation", label: "Continuation", count: prompts.filter(p => p.is_active).length },
+    { id: "promotions", label: "Promotions" },
   ];
 
   return (
@@ -140,6 +146,18 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
       {tab === "phrases" && <PhrasesTab phrases={phrases} setPhrases={setPhrases} personaId={persona.id} />}
       {tab === "moments" && <MomentsTab moments={moments} setMoments={setMoments} personaId={persona.id} />}
       {tab === "continuation" && <ContinuationTab prompts={prompts} setPrompts={setPrompts} personaId={persona.id} personaName={persona.display_name} />}
+      {tab === "promotions" && (
+        <PromotionsTab
+          personaId={personaId || persona.id}
+          personaName={persona.display_name}
+          editingPromo={editingPromo}
+          setEditingPromo={setEditingPromo}
+          showEditor={showPromoEditor}
+          setShowEditor={setShowPromoEditor}
+          refreshKey={promoRefreshKey}
+          setRefreshKey={setPromoRefreshKey}
+        />
+      )}
     </div>
   );
 }
@@ -620,6 +638,144 @@ function SliderField({ label, value, onChange, min, max, left, right }: { label:
         <span className="text-white/25 text-[11px]">{left}</span>
         <span className="text-white/25 text-[11px]">{right}</span>
       </div>
+    </div>
+  );
+}
+
+// ── Promotions Tab ──────────────────────────────────────────
+function PromotionsTab({ personaId, personaName, editingPromo, setEditingPromo, showEditor, setShowEditor, refreshKey, setRefreshKey }: {
+  personaId: string;
+  personaName: string;
+  editingPromo: import("@/types/promotions").Promotion | null;
+  setEditingPromo: (p: import("@/types/promotions").Promotion | null) => void;
+  showEditor: boolean;
+  setShowEditor: (v: boolean) => void;
+  refreshKey: number;
+  setRefreshKey: (fn: (k: number) => number) => void;
+}) {
+  const [promotions, setPromotions] = useState<import("@/types/promotions").Promotion[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPromotions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  async function fetchPromotions() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/promotions?personaId=${personaId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPromotions(data.promotions || []);
+      }
+    } catch (e) { console.error("Failed to load promotions:", e); }
+    setLoading(false);
+  }
+
+  async function handleSave(promo: Partial<import("@/types/promotions").Promotion>) {
+    const isNew = !promo.id;
+    const payload = { ...promo, recommendedPersonaIds: [personaId] };
+    const res = await fetch("/api/promotions", {
+      method: isNew ? "POST" : "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      setRefreshKey((k: number) => k + 1);
+      setShowEditor(false);
+      setEditingPromo(null);
+    }
+  }
+
+  async function handleToggle(promo: import("@/types/promotions").Promotion) {
+    await fetch("/api/promotions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...promo, status: promo.status === "active" ? "disabled" : "active" }),
+    });
+    setRefreshKey((k: number) => k + 1);
+  }
+
+  async function handleDelete(id: string) {
+    await fetch("/api/promotions", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setPromotions((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  if (showEditor) {
+    const PromotionEditor = require("@/components/creator/PromotionEditor").default;
+    return (
+      <PromotionEditor
+        promotion={editingPromo}
+        personas={[{ id: personaId, displayName: personaName, slug: "" }]}
+        onSave={handleSave}
+        onCancel={() => { setShowEditor(false); setEditingPromo(null); }}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-white/50 text-sm">{personaName}&apos;s promotions</p>
+        <button
+          onClick={() => { setEditingPromo(null); setShowEditor(true); }}
+          className="gradient-bg text-white font-semibold px-4 py-2 rounded-xl text-sm hover:opacity-90 transition-opacity"
+        >
+          + New Promotion
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-white/30">Loading...</div>
+      ) : promotions.length === 0 ? (
+        <div className="text-center py-12 bg-[#1E1E30] rounded-2xl border border-white/5">
+          <p className="text-white/40 text-sm">No promotions yet for {personaName}</p>
+          <button
+            onClick={() => { setEditingPromo(null); setShowEditor(true); }}
+            className="mt-3 text-[#FF3CAC] text-sm font-medium hover:underline"
+          >
+            Create first promotion
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {promotions.map((promo) => (
+            <div key={promo.id} className="bg-[#1E1E30] border border-white/8 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-semibold text-sm">{promo.title}</p>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      promo.status === "active" ? "bg-green-400/15 text-green-400"
+                        : promo.status === "archived" ? "bg-red-400/15 text-red-400"
+                        : "bg-white/10 text-white/40"
+                    }`}>
+                      {promo.status}
+                    </span>
+                  </div>
+                  <p className="text-white/30 text-xs mt-0.5">{promo.type.replace("_", " ")}{promo.promoPrice ? " · $" + promo.promoPrice : ""}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleToggle(promo)} className="text-white/30 hover:text-white/60 text-xs px-2 py-1 rounded-lg border border-white/10 hover:border-white/20 transition-colors">
+                    {promo.status === "active" ? "Pause" : "Activate"}
+                  </button>
+                  <button onClick={() => { setEditingPromo(promo); setShowEditor(true); }} className="text-white/30 hover:text-white/60 text-xs px-2 py-1 rounded-lg border border-white/10 hover:border-white/20 transition-colors">
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(promo.id)} className="text-red-400/40 hover:text-red-400 text-xs px-2 py-1 rounded-lg border border-red-500/10 hover:border-red-500/30 transition-colors">
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
