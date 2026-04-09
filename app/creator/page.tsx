@@ -22,7 +22,7 @@ export default async function CreatorDashboard() {
     .select("persona_id");
 
   const momentCounts: Record<string, number> = {};
-  (allMoments || []).forEach((m) => {
+  (allMoments || []).forEach((m: { persona_id: string }) => {
     momentCounts[m.persona_id] = (momentCounts[m.persona_id] || 0) + 1;
   });
 
