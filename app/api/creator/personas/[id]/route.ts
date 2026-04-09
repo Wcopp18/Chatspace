@@ -96,3 +96,26 @@ export async function POST(
 
   return NextResponse.json({ url: publicUrl });
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const user = await verifyAdmin();
+  if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const admin = createAdminClient();
+
+  // Delete related data first
+  await admin.from("persona_phrase_bank").delete().eq("persona_id", id);
+  await admin.from("moments").delete().eq("persona_id", id);
+  await admin.from("continuation_prompts").delete().eq("persona_id", id);
+  await admin.from("conversations").delete().eq("persona_id", id);
+  await admin.from("tension_state").delete().eq("persona_id", id);
+
+  const { error } = await admin.from("personas").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
