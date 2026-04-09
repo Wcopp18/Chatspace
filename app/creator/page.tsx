@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import Image from "next/image";
+import AddGirlButton from "./AddGirlButton";
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
   luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
@@ -28,9 +29,12 @@ export default async function CreatorDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Girls</h1>
-        <p className="text-white/40 text-sm mt-1">Manage personas, moments, and pricing</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Girls</h1>
+          <p className="text-white/40 text-sm mt-1">Manage personas, moments, and pricing</p>
+        </div>
+        <AddGirlButton />
       </div>
 
       <div className="grid gap-4">
