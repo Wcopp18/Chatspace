@@ -28,7 +28,13 @@ export default function PersonaHeader({ persona, sidebarBadge, onSidebarOpen, on
   const tensionPercentage = Math.round(Math.max(0, Math.min(100, tensionScore)));
 
   return (
-    <header className="flex-shrink-0 bg-[#0D0D1A] border-b border-white/5 px-4 py-3 safe-top z-30">
+    <header
+      className="flex-shrink-0 border-b border-purple-500/10 px-4 py-3 safe-top z-30"
+      style={{
+        background: "linear-gradient(180deg, rgba(30, 15, 55, 0.98) 0%, rgba(22, 10, 42, 0.95) 100%)",
+        backdropFilter: "blur(20px)",
+      }}
+    >
       <div className="flex items-center gap-3 max-w-lg mx-auto">
         {/* Avatar — large rectangle, vibrant */}
         <div className="relative flex-shrink-0">

@@ -513,7 +513,12 @@ export default function ChatShell({
   const sidebarBadgeCount = sidebarMoments.filter((m) => !m.unlocked).length;
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-[#0D0D1A] overflow-hidden">
+    <div
+      className="flex flex-col h-[100dvh] overflow-hidden"
+      style={{
+        background: "linear-gradient(180deg, #1a0b2e 0%, #16082a 40%, #0f0420 100%)",
+      }}
+    >
       {/* Header */}
       <PersonaHeader
         persona={persona}
