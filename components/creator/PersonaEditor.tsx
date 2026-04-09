@@ -142,6 +142,10 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
           sentenceLength={sentenceLength} setSentenceLength={setSentenceLength}
           isActive={isActive} setIsActive={setIsActive}
           onSave={saveProfile} saving={saving} saved={saved}
+          personaId={persona.id} onDelete={async () => {
+            const res = await fetch(`/api/creator/personas/${persona.id}`, { method: "DELETE" });
+            if (res.ok) { router.push("/creator"); router.refresh(); }
+          }}
         />
       )}
       {tab === "phrases" && <PhrasesTab phrases={phrases} setPhrases={setPhrases} personaId={persona.id} />}
@@ -167,7 +171,7 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
 }
 
 // ── Profile Tab ──────────────────────────────────────────────
-function ProfileTab({ displayName, setDisplayName, bio, setBio, warmth, setWarmth, teaseLevel, setTeaseLevel, textingStyle, setTextingStyle, emojiStyle, setEmojiStyle, sentenceLength, setSentenceLength, isActive, setIsActive, onSave, saving, saved }: {
+function ProfileTab({ displayName, setDisplayName, bio, setBio, warmth, setWarmth, teaseLevel, setTeaseLevel, textingStyle, setTextingStyle, emojiStyle, setEmojiStyle, sentenceLength, setSentenceLength, isActive, setIsActive, onSave, saving, saved, personaId, onDelete }: {
   displayName: string; setDisplayName: (v: string) => void;
   bio: string; setBio: (v: string) => void;
   warmth: number; setWarmth: (v: number) => void;
@@ -177,6 +181,7 @@ function ProfileTab({ displayName, setDisplayName, bio, setBio, warmth, setWarmt
   sentenceLength: string; setSentenceLength: (v: string) => void;
   isActive: boolean; setIsActive: (v: boolean) => void;
   onSave: () => void; saving: boolean; saved: boolean;
+  personaId: string; onDelete: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -223,6 +228,21 @@ function ProfileTab({ displayName, setDisplayName, bio, setBio, warmth, setWarmt
       <button onClick={onSave} disabled={saving} className="w-full gradient-bg text-white font-semibold py-3.5 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60 glow-pink-sm">
         {saved ? "✓ Saved" : saving ? "Saving…" : "Save Profile"}
       </button>
+
+      {/* Danger zone */}
+      <div className="mt-8 pt-6 border-t border-red-500/10">
+        <p className="text-red-400/60 text-xs font-medium mb-2">Danger Zone</p>
+        <button
+          onClick={() => {
+            if (confirm("Are you sure you want to delete this girl? This will remove all her data including conversations, phrases, moments, and promotions. This cannot be undone.")) {
+              onDelete();
+            }
+          }}
+          className="w-full py-2.5 rounded-xl text-red-400 text-sm font-medium border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
+        >
+          Delete Girl
+        </button>
+      </div>
     </div>
   );
 }
