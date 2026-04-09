@@ -103,35 +103,34 @@ export default function MediaShelf({ items, onUnlock }: Props) {
             >
               {/* Card */}
               <div
-                className="relative w-32 h-40 rounded-xl overflow-hidden border"
+                className="relative w-32 h-40 rounded-2xl overflow-hidden border"
                 style={{
-                  borderColor: "rgba(139,92,246,0.25)",
-                  boxShadow: "0 4px 16px rgba(139,92,246,0.15)",
+                  borderColor: "rgba(192, 132, 252, 0.3)",
+                  boxShadow: "0 4px 20px rgba(168, 85, 247, 0.25)",
                 }}
               >
                 {/* Blurred background image */}
                 <div
-                  className="absolute inset-0 bg-[#2A1B4E] bg-cover bg-center"
+                  className="absolute inset-0 bg-cover bg-center"
                   style={
                     item.thumbnailUrl
                       ? {
                           backgroundImage: `url(${item.thumbnailUrl})`,
-                          filter: item.locked ? "blur(16px) brightness(0.55)" : "none",
+                          filter: item.locked ? "blur(16px) brightness(0.7)" : "none",
                         }
                       : {
                           background:
-                            "linear-gradient(135deg, rgba(139,92,246,0.3), rgba(168,85,247,0.2))",
+                            "linear-gradient(135deg, #9F7AEA 0%, #B794F4 50%, #D6BCFA 100%)",
                         }
                   }
                 />
 
-                {/* Purple gradient overlay for locked items */}
+                {/* Lavender overlay for locked items */}
                 {item.locked && (
                   <div
                     className="absolute inset-0"
                     style={{
-                      background:
-                        "linear-gradient(180deg, rgba(139,92,246,0.1) 0%, rgba(13,13,26,0.4) 100%)",
+                      background: "linear-gradient(135deg, rgba(159, 122, 234, 0.4) 0%, rgba(183, 148, 244, 0.3) 100%)",
                     }}
                   />
                 )}

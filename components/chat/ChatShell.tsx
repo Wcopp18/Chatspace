@@ -514,11 +514,18 @@ export default function ChatShell({
 
   return (
     <div
-      className="flex flex-col h-[100dvh] overflow-hidden"
+      className="flex flex-col h-[100dvh] overflow-hidden relative"
       style={{
-        background: "linear-gradient(180deg, #1a0b2e 0%, #16082a 40%, #0f0420 100%)",
+        background: "radial-gradient(ellipse 140% 80% at 50% 0%, #3d1566 0%, #2a0d4a 25%, #1a0832 55%, #0f0420 100%)",
       }}
     >
+      {/* Ambient glow layers */}
+      <div
+        className="absolute inset-x-0 top-0 h-64 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse 100% 70% at 50% 0%, rgba(168, 85, 247, 0.25) 0%, rgba(139, 92, 246, 0.1) 40%, transparent 70%)",
+        }}
+      />
       {/* Header */}
       <PersonaHeader
         persona={persona}
