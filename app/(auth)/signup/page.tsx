@@ -20,21 +20,30 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: name },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    // Step 1: Create user via server-side API (bypasses email confirmation)
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, display_name: name }),
     });
 
-    if (error) {
-      setError(error.message);
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Signup failed");
       setLoading(false);
-    } else {
-      setSuccess(true);
+      return;
     }
+
+    // Step 2: Sign them in immediately
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setError(signInError.message);
+      setLoading(false);
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
   }
 
   if (success) {
