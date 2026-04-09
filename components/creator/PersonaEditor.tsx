@@ -18,7 +18,7 @@ interface Props {
   personaId?: string;
 }
 
-type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions";
+type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions" | "tension";
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
   luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
@@ -82,6 +82,7 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
     { id: "moments", label: "Moments", count: moments.filter(m => m.is_active).length },
     { id: "continuation", label: "Continuation", count: prompts.filter(p => p.is_active).length },
     { id: "promotions", label: "Promotions" },
+    { id: "tension", label: "Tension Meter" },
   ];
 
   return (
@@ -157,6 +158,9 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
           refreshKey={promoRefreshKey}
           setRefreshKey={setPromoRefreshKey}
         />
+      )}
+      {tab === "tension" && (
+        <TensionTipsTab personaId={persona.id} personaName={persona.display_name} />
       )}
     </div>
   );
@@ -776,6 +780,168 @@ function PromotionsTab({ personaId, personaName, editingPromo, setEditingPromo, 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Tension Meter Tips Tab ──────────────────────────────────
+function TensionTipsTab({ personaId, personaName }: { personaId: string; personaName: string }) {
+  const [intro, setIntro] = useState("");
+  const [riseTips, setRiseTips] = useState<string[]>([""]);
+  const [fallTips, setFallTips] = useState<string[]>([""]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    loadTips();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId]);
+
+  async function loadTips() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/creator/personas/${personaId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setIntro(data.persona?.tension_intro || "");
+        const rise = data.persona?.tension_tips_rise;
+        const fall = data.persona?.tension_tips_fall;
+        setRiseTips(rise && rise.length > 0 ? rise : [""]);
+        setFallTips(fall && fall.length > 0 ? fall : [""]);
+      }
+    } catch (e) { console.error("Failed to load tension tips:", e); }
+    setLoading(false);
+  }
+
+  async function saveTips() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/creator/personas/${personaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tension_intro: intro,
+          tension_tips_rise: riseTips.filter(t => t.trim()),
+          tension_tips_fall: fallTips.filter(t => t.trim()),
+        }),
+      });
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+    } finally { setSaving(false); }
+  }
+
+  function updateTip(list: string[], setList: (v: string[]) => void, index: number, value: string) {
+    const updated = [...list];
+    updated[index] = value;
+    setList(updated);
+  }
+
+  function addTip(list: string[], setList: (v: string[]) => void) {
+    setList([...list, ""]);
+  }
+
+  function removeTip(list: string[], setList: (v: string[]) => void, index: number) {
+    if (list.length <= 1) return;
+    setList(list.filter((_, i) => i !== index));
+  }
+
+  if (loading) return <div className="text-center py-12 text-white/30">Loading...</div>;
+
+  return (
+    <div className="space-y-6">
+      {/* Intro / Description */}
+      <div>
+        <label className="text-white/70 text-sm font-medium block mb-2">
+          Tension Meter Intro for {personaName}
+        </label>
+        <p className="text-white/30 text-xs mb-2">
+          A short intro shown to users about how the tension meter works with this girl. Make it feel personal.
+        </p>
+        <textarea
+          value={intro}
+          onChange={(e) => setIntro(e.target.value)}
+          placeholder={`e.g. "${personaName} responds to how you vibe with her. Keep the energy right and she might show you something special..."`}
+          rows={3}
+          className="w-full bg-[#0D0D1A] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-[#FF3CAC]/50 text-sm resize-none"
+        />
+      </div>
+
+      {/* Rise Tips */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-green-400 text-lg">▲</span>
+          <label className="text-white/70 text-sm font-medium">What Makes It Rise</label>
+        </div>
+        <p className="text-white/30 text-xs mb-3">
+          Tips the user sees on how to build momentum with {personaName}. Be specific to her personality.
+        </p>
+        <div className="space-y-2">
+          {riseTips.map((tip, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                value={tip}
+                onChange={(e) => updateTip(riseTips, setRiseTips, i, e.target.value)}
+                placeholder={`e.g. "Compliment her music taste — she'll melt"`}
+                className="flex-1 bg-[#0D0D1A] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/20 focus:outline-none focus:border-green-500/50 text-sm"
+              />
+              {riseTips.length > 1 && (
+                <button onClick={() => removeTip(riseTips, setRiseTips, i)} className="text-red-400/40 hover:text-red-400 px-2 transition-colors">
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={() => addTip(riseTips, setRiseTips)}
+            className="text-green-400/60 hover:text-green-400 text-sm font-medium transition-colors"
+          >
+            + Add tip
+          </button>
+        </div>
+      </div>
+
+      {/* Fall Tips */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-red-400 text-lg">▼</span>
+          <label className="text-white/70 text-sm font-medium">What Makes It Fall</label>
+        </div>
+        <p className="text-white/30 text-xs mb-3">
+          Tips on what kills the vibe with {personaName}. Warn users what to avoid.
+        </p>
+        <div className="space-y-2">
+          {fallTips.map((tip, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                value={tip}
+                onChange={(e) => updateTip(fallTips, setFallTips, i, e.target.value)}
+                placeholder={`e.g. "Don't ask for pics right away — she hates that"`}
+                className="flex-1 bg-[#0D0D1A] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/20 focus:outline-none focus:border-red-500/50 text-sm"
+              />
+              {fallTips.length > 1 && (
+                <button onClick={() => removeTip(fallTips, setFallTips, i)} className="text-red-400/40 hover:text-red-400 px-2 transition-colors">
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={() => addTip(fallTips, setFallTips)}
+            className="text-red-400/60 hover:text-red-400 text-sm font-medium transition-colors"
+          >
+            + Add tip
+          </button>
+        </div>
+      </div>
+
+      {/* Save button */}
+      <button
+        onClick={saveTips}
+        disabled={saving}
+        className="w-full gradient-bg text-white font-semibold py-3 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
+      >
+        {saving ? "Saving..." : saved ? "Saved!" : "Save Tension Tips"}
+      </button>
     </div>
   );
 }
