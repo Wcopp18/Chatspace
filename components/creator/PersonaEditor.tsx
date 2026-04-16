@@ -9,6 +9,10 @@ type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type Phrase = Database["public"]["Tables"]["persona_phrase_bank"]["Row"];
 type Moment = Database["public"]["Tables"]["moments"]["Row"];
 type ContinuationPrompt = Database["public"]["Tables"]["continuation_prompts"]["Row"];
+type RelLevel = Database["public"]["Tables"]["relationship_levels"]["Row"];
+type RelReward = Database["public"]["Tables"]["relationship_level_rewards"]["Row"];
+
+type RelLevelWithRewards = RelLevel & { relationship_level_rewards: RelReward[] };
 
 interface Props {
   persona: Persona;
@@ -16,9 +20,10 @@ interface Props {
   moments: Moment[];
   continuationPrompts: ContinuationPrompt[];
   personaId?: string;
+  relationshipLevels?: RelLevelWithRewards[];
 }
 
-type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions" | "tension";
+type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions" | "tension" | "levels";
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
   luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
@@ -26,7 +31,7 @@ const PLACEHOLDER_AVATARS: Record<string, string> = {
   aria: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop&crop=face",
 };
 
-export default function PersonaEditor({ persona, phrases: initialPhrases, moments: initialMoments, continuationPrompts: initialPrompts, personaId }: Props) {
+export default function PersonaEditor({ persona, phrases: initialPhrases, moments: initialMoments, continuationPrompts: initialPrompts, personaId, relationshipLevels: initialLevels }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
@@ -38,6 +43,7 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
   const [phrases, setPhrases] = useState<Phrase[]>(initialPhrases);
   const [moments, setMoments] = useState<Moment[]>(initialMoments);
   const [prompts, setPrompts] = useState<ContinuationPrompt[]>(initialPrompts);
+  const [levels, setLevels] = useState<RelLevelWithRewards[]>(initialLevels || []);
 
   // Profile state
   const [displayName, setDisplayName] = useState(persona.display_name);
@@ -81,6 +87,7 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
     { id: "phrases", label: "Phrases", count: phrases.filter(p => p.is_active).length },
     { id: "moments", label: "Moments", count: moments.filter(m => m.is_active).length },
     { id: "continuation", label: "Continuation", count: prompts.filter(p => p.is_active).length },
+    { id: "levels", label: "Levels", count: levels.length },
     { id: "promotions", label: "Promotions" },
     { id: "tension", label: "Tension Meter" },
   ];
@@ -162,6 +169,9 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
           refreshKey={promoRefreshKey}
           setRefreshKey={setPromoRefreshKey}
         />
+      )}
+      {tab === "levels" && (
+        <RelationshipLevelsTab levels={levels} setLevels={setLevels} personaId={persona.id} personaName={persona.display_name} />
       )}
       {tab === "tension" && (
         <TensionTipsTab personaId={persona.id} personaName={persona.display_name} />
@@ -798,6 +808,302 @@ function PromotionsTab({ personaId, personaName, editingPromo, setEditingPromo, 
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Relationship Levels Tab ─────────────────────────────────
+function RelationshipLevelsTab({ levels, setLevels, personaId, personaName }: {
+  levels: RelLevelWithRewards[];
+  setLevels: (l: RelLevelWithRewards[]) => void;
+  personaId: string;
+  personaName: string;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newXp, setNewXp] = useState(100);
+  const [newDesc, setNewDesc] = useState("");
+  const [newColor, setNewColor] = useState("#8B5CF6");
+  const [newIcon, setNewIcon] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editXp, setEditXp] = useState(0);
+  const [editDesc, setEditDesc] = useState("");
+  // Reward upload state
+  const [uploadingRewardFor, setUploadingRewardFor] = useState<string | null>(null);
+  const [addingRewardFor, setAddingRewardFor] = useState<string | null>(null);
+  const [newRewardType, setNewRewardType] = useState<"image" | "video" | "note">("image");
+  const [newRewardCaption, setNewRewardCaption] = useState("");
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadLevelId, setActiveUploadLevelId] = useState<string | null>(null);
+  const [activeUploadRewardId, setActiveUploadRewardId] = useState<string | null>(null);
+
+  const nextLevelNumber = levels.length > 0 ? Math.max(...levels.map(l => l.level_number)) + 1 : 1;
+
+  async function addLevel() {
+    if (!newName.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/creator/levels", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          persona_id: personaId,
+          level_number: nextLevelNumber,
+          level_name: newName.trim(),
+          xp_required: newXp,
+          description: newDesc.trim() || null,
+          color_hex: newColor,
+          icon: newIcon.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.level) {
+        setLevels([...levels, { ...data.level, relationship_level_rewards: [] }]);
+        setShowAdd(false);
+        setNewName("");
+        setNewDesc("");
+        setNewXp(Math.round(newXp * 1.5));
+      }
+    } finally { setAdding(false); }
+  }
+
+  async function saveEdit(id: string) {
+    const res = await fetch(`/api/creator/levels/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ level_name: editName, xp_required: editXp, description: editDesc }),
+    });
+    const data = await res.json();
+    if (data.level) {
+      setLevels(levels.map(l => l.id === id ? { ...data.level, relationship_level_rewards: l.relationship_level_rewards } : l));
+      setEditingId(null);
+    }
+  }
+
+  async function deleteLevel(id: string) {
+    await fetch(`/api/creator/levels/${id}`, { method: "DELETE" });
+    setLevels(levels.filter(l => l.id !== id));
+  }
+
+  async function addReward(levelId: string) {
+    const res = await fetch(`/api/creator/levels/${levelId}/rewards`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        persona_id: personaId,
+        media_type: newRewardType,
+        caption: newRewardCaption.trim() || null,
+      }),
+    });
+    const data = await res.json();
+    if (data.reward) {
+      setLevels(levels.map(l =>
+        l.id === levelId
+          ? { ...l, relationship_level_rewards: [...l.relationship_level_rewards, data.reward] }
+          : l
+      ));
+      setAddingRewardFor(null);
+      setNewRewardCaption("");
+    }
+  }
+
+  async function deleteReward(levelId: string, rewardId: string) {
+    await fetch(`/api/creator/levels/${levelId}/rewards/${rewardId}`, { method: "DELETE" });
+    setLevels(levels.map(l =>
+      l.id === levelId
+        ? { ...l, relationship_level_rewards: l.relationship_level_rewards.filter(r => r.id !== rewardId) }
+        : l
+    ));
+  }
+
+  async function uploadRewardMedia(levelId: string, rewardId: string, file: File) {
+    setUploadingRewardFor(rewardId);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("type", "media");
+      const res = await fetch(`/api/creator/levels/${levelId}/rewards/${rewardId}/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.url) {
+        setLevels(levels.map(l =>
+          l.id === levelId
+            ? { ...l, relationship_level_rewards: l.relationship_level_rewards.map(r => r.id === rewardId ? { ...r, media_url: data.url } : r) }
+            : l
+        ));
+      }
+    } finally { setUploadingRewardFor(null); }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4">
+        <p className="text-white font-semibold text-sm mb-1">Relationship Levels for {personaName}</p>
+        <p className="text-white/40 text-xs">
+          Define the stages of the long-term relationship. Users earn XP through quality messages and level up over time.
+          Add free images/videos as rewards when they reach each level.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-white/40 text-sm">{levels.length} level{levels.length !== 1 ? "s" : ""} defined</p>
+        <button onClick={() => setShowAdd(!showAdd)} className="text-sm gradient-bg text-white px-4 py-1.5 rounded-xl font-medium">
+          {showAdd ? "Cancel" : "+ Add Level"}
+        </button>
+      </div>
+
+      {showAdd && (
+        <div className="bg-[#1E1E30] border border-[#FF3CAC]/20 rounded-2xl p-4 space-y-3">
+          <p className="text-white font-semibold text-sm">New Level (#{nextLevelNumber})</p>
+          <Field label="Level Name (catchy phrase)">
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder='e.g. "Catching Feelings"' className="creator-input" />
+          </Field>
+          <Field label="XP Required">
+            <input type="number" value={newXp} onChange={e => setNewXp(parseInt(e.target.value) || 0)} className="creator-input" />
+          </Field>
+          <Field label="Description (optional)">
+            <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="What this level means..." className="creator-input" />
+          </Field>
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-white/40 text-xs">Color</label>
+              <input type="color" value={newColor} onChange={e => setNewColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer" />
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-white/40 text-xs">Icon</label>
+              <input value={newIcon} onChange={e => setNewIcon(e.target.value)} placeholder="emoji" className="creator-input w-20" />
+            </div>
+          </div>
+          <button onClick={addLevel} disabled={adding || !newName.trim()} className="w-full gradient-bg text-white font-semibold py-2.5 rounded-xl disabled:opacity-50">
+            {adding ? "Adding..." : "Add Level"}
+          </button>
+        </div>
+      )}
+
+      {/* Hidden file input for reward upload */}
+      <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={e => {
+        const f = e.target.files?.[0];
+        if (f && activeUploadLevelId && activeUploadRewardId) {
+          uploadRewardMedia(activeUploadLevelId, activeUploadRewardId, f);
+        }
+        e.target.value = "";
+      }} />
+
+      {levels.map(level => (
+        <div key={level.id} className="bg-[#1E1E30] border border-white/8 rounded-2xl p-4 space-y-3">
+          {editingId === level.id ? (
+            <div className="space-y-2">
+              <input value={editName} onChange={e => setEditName(e.target.value)} className="creator-input text-sm font-semibold" />
+              <div className="flex gap-2">
+                <input type="number" value={editXp} onChange={e => setEditXp(parseInt(e.target.value) || 0)} className="creator-input w-24 text-sm" />
+                <span className="text-white/30 text-xs self-center">XP</span>
+              </div>
+              <input value={editDesc} onChange={e => setEditDesc(e.target.value)} className="creator-input text-sm" placeholder="Description..." />
+              <div className="flex gap-2">
+                <button onClick={() => saveEdit(level.id)} className="gradient-bg text-white text-xs px-4 py-1.5 rounded-lg">Save</button>
+                <button onClick={() => setEditingId(null)} className="text-white/30 text-xs px-3 py-1.5 rounded-lg hover:text-white/50">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  {level.icon && <span className="text-lg">{level.icon}</span>}
+                  <span className="text-white font-semibold text-sm">{level.level_name}</span>
+                  <span className="text-white/20 text-xs">Lv.{level.level_number}</span>
+                </div>
+                <p className="text-white/40 text-xs mt-0.5">{level.xp_required} XP required{level.description ? ` \u00b7 ${level.description}` : ""}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ background: level.color_hex }} />
+                <button onClick={() => { setEditingId(level.id); setEditName(level.level_name); setEditXp(level.xp_required); setEditDesc(level.description || ""); }} className="text-white/30 hover:text-white/70">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button onClick={() => deleteLevel(level.id)} className="text-red-400/40 hover:text-red-400">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Rewards section */}
+          <div className="border-t border-white/5 pt-3 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-white/50 text-xs font-medium">Rewards ({level.relationship_level_rewards.length})</p>
+              <button
+                onClick={() => setAddingRewardFor(addingRewardFor === level.id ? null : level.id)}
+                className="text-[#FF3CAC] text-xs hover:underline"
+              >
+                {addingRewardFor === level.id ? "Cancel" : "+ Add Reward"}
+              </button>
+            </div>
+
+            {addingRewardFor === level.id && (
+              <div className="bg-[#252538] rounded-xl p-3 space-y-2 mb-2">
+                <div className="flex gap-2">
+                  <select value={newRewardType} onChange={e => setNewRewardType(e.target.value as "image" | "video" | "note")} className="creator-input flex-1 text-xs py-1.5">
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                    <option value="note">Special Note</option>
+                  </select>
+                  <input value={newRewardCaption} onChange={e => setNewRewardCaption(e.target.value)} placeholder="Caption (optional)" className="creator-input flex-1 text-xs py-1.5" />
+                </div>
+                <button onClick={() => addReward(level.id)} className="text-xs gradient-bg text-white px-3 py-1.5 rounded-lg">Create Reward</button>
+              </div>
+            )}
+
+            {level.relationship_level_rewards.map(reward => (
+              <div key={reward.id} className="flex items-center justify-between bg-[#252538] rounded-xl px-3 py-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs">{reward.media_type === "video" ? "🎬" : reward.media_type === "note" ? "💌" : "📸"}</span>
+                  <span className="text-white/70 text-xs">{reward.media_type}{reward.caption ? `: "${reward.caption}"` : ""}</span>
+                  {reward.media_url ? (
+                    <span className="text-green-400/60 text-[10px]">uploaded</span>
+                  ) : (
+                    <span className="text-white/20 text-[10px]">no media</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {reward.media_type !== "note" && (
+                    <button
+                      onClick={() => {
+                        setActiveUploadLevelId(level.id);
+                        setActiveUploadRewardId(reward.id);
+                        mediaInputRef.current?.click();
+                      }}
+                      disabled={uploadingRewardFor === reward.id}
+                      className="text-[#FF3CAC] text-[10px] hover:underline disabled:opacity-50"
+                    >
+                      {uploadingRewardFor === reward.id ? "Uploading..." : reward.media_url ? "Replace" : "Upload"}
+                    </button>
+                  )}
+                  <button onClick={() => deleteReward(level.id, reward.id)} className="text-red-400/30 hover:text-red-400">
+                    <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {level.relationship_level_rewards.length === 0 && (
+              <p className="text-white/20 text-xs italic">No rewards yet — add images or videos users receive when they reach this level</p>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {levels.length === 0 && !showAdd && (
+        <div className="text-center py-12 bg-[#1E1E30] rounded-2xl border border-white/5">
+          <p className="text-white/40 text-sm">No relationship levels defined for {personaName}</p>
+          <p className="text-white/25 text-xs mt-1 mb-3">Default levels will be used until you create custom ones</p>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="text-[#FF3CAC] text-sm font-medium hover:underline"
+          >
+            Create first level
+          </button>
         </div>
       )}
     </div>

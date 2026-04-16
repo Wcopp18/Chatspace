@@ -7,7 +7,9 @@ import PersonaHeader from "./PersonaHeader";
 import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
 import TensionMeter from "./TensionMeter";
+import type { RelationshipData } from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
+import RewardPopup from "./RewardPopup";
 import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
@@ -98,6 +100,9 @@ export default function ChatShell({
   const [showTensionExplainer, setShowTensionExplainer] = useState(false);
   const [tensionExplainerShown, setTensionExplainerShown] = useState(false);
   const [showCustomRequest, setShowCustomRequest] = useState(false);
+  const [relationship, setRelationship] = useState<RelationshipData | null>(null);
+  const [pendingLevelUp, setPendingLevelUp] = useState<{ level: number; levelName: string; rewards: Array<{ id: string; mediaType: "image" | "video" | "note"; mediaUrl: string | null; thumbnailUrl: string | null; caption: string | null }> } | null>(null);
+  const [pendingSurprise, setPendingSurprise] = useState<{ gestureType: string; triggerReason: string; reward: { id: string; mediaType: "image" | "video" | "note"; mediaUrl: string | null; thumbnailUrl: string | null; caption: string | null } | null } | null>(null);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -228,6 +233,25 @@ export default function ChatShell({
         if (data.continuationPrompt) {
           setContinuation(data.continuationPrompt);
         }
+
+        // Handle relationship level data
+        if (data.relationship) {
+          setRelationship(data.relationship);
+
+          // If leveled up and has rewards, show popup
+          if (data.relationship.leveledUp && data.relationship.rewards?.length > 0) {
+            setPendingLevelUp({
+              level: data.relationship.level,
+              levelName: data.relationship.levelName,
+              rewards: data.relationship.rewards,
+            });
+          }
+        }
+
+        // Handle surprise gesture
+        if (data.surprise) {
+          setPendingSurprise(data.surprise);
+        }
       }
     } catch (err) {
       console.error("Chat error:", err);
@@ -311,7 +335,7 @@ export default function ChatShell({
       />
 
       {/* Tension Meter */}
-      <TensionMeter tension={tension} personaName={persona.display_name} />
+      <TensionMeter tension={tension} personaName={persona.display_name} relationship={relationship} />
 
       {/* Media Shelf — always visible */}
       <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
@@ -378,6 +402,22 @@ export default function ChatShell({
           />
         )}
       </AnimatePresence>
+
+      {/* Level-up / Surprise reward popup */}
+      {(pendingLevelUp || pendingSurprise) && (
+        <RewardPopup
+          levelUp={pendingLevelUp}
+          surprise={pendingSurprise}
+          personaName={persona.display_name}
+          onDismiss={() => {
+            setPendingLevelUp(null);
+            setPendingSurprise(null);
+          }}
+          onMoveToSidebar={() => {
+            // Rewards move to sidebar conceptually — dismiss popup
+          }}
+        />
+      )}
     </div>
   );
 }

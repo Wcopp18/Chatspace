@@ -14,6 +14,23 @@ import {
   extractMemories,
   saveMemories,
   selectCallback,
+  // New experience systems
+  scoreMessageQuality,
+  getOrGenerateDailyVibe,
+  buildVibePromptContext,
+  getOrCreateSessionChemistry,
+  updateSessionChemistry,
+  buildChemistryPromptContext,
+  getUserProgress,
+  addXpAndCheckLevelUp,
+  getRelationshipLevels,
+  buildRelationshipPromptContext,
+  getOrCreateHiddenProgress,
+  updateHiddenProgress,
+  recordSurpriseDelivered,
+  evaluateSurpriseGesture,
+  evaluateAntiGaming,
+  DEFAULT_LEVELS,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -120,6 +137,43 @@ export async function POST(request: NextRequest) {
 
     const currentMessageCount = conversation?.message_count || 0;
 
+    // ── STEP 0: Run all new experience systems in parallel (safe, non-blocking) ──
+    let messageQuality: import("@/lib/engine").MessageQualityResult = { label: "medium", score: 0.5, effort: 0.5, warmth: 0.5, relevance: 0.5, repetition: 0, spam: 0, xpAwarded: 4 };
+    let dailyVibe: import("@/lib/engine").DailyVibe = { vibe: "playful", intensity: 0.5, generatedFrom: {} };
+    let sessionChemistry: import("@/lib/engine").ChemistryState = { score: 50, zone: "warm", peakScore: 50, goodMessageCount: 0, badMessageCount: 0, totalSessionMessages: 0, positiveStreak: 0 };
+    let userProgress: import("@/lib/engine").UserProgress = { currentLevel: 1, currentXp: 0, totalXpEarned: 0, totalMessagesSent: 0, totalQualityMessages: 0, currentStreak: 0, longestStreak: 0, levelCompletedCount: 0 };
+    let antiGamingResult: import("@/lib/engine").AntiGamingResult = { state: { recentMessageHashes: [], recentTopics: [], burstCount: 0, repeatCount: 0, sameTopicCount: 0, diminishingFactor: 1, repetitionPenalty: 0, burstPenalty: 0, topicDiversity: 0.5 }, xpMultiplier: 1, chemistryMultiplier: 1, warnings: [] };
+    let relationshipLevels: import("@/lib/engine").RelationshipLevel[] = DEFAULT_LEVELS.map(l => ({ ...l, id: `default-${l.levelNumber}`, personaId: persona.id }));
+
+    try {
+      const [mqResult, vibeResult, chemResult, progResult, agResult, levelsResult] = await Promise.allSettled([
+        Promise.resolve(scoreMessageQuality(message)),
+        getOrGenerateDailyVibe(supabase, user.id, persona.id, 1, persona.warmth, persona.tease_level),
+        getOrCreateSessionChemistry(supabase, user.id, persona.id, convId),
+        getUserProgress(supabase, user.id, persona.id),
+        evaluateAntiGaming(supabase, user.id, persona.id, message),
+        getRelationshipLevels(supabase, persona.id),
+      ]);
+
+      if (mqResult.status === "fulfilled") messageQuality = mqResult.value;
+      if (vibeResult.status === "fulfilled") dailyVibe = vibeResult.value;
+      if (chemResult.status === "fulfilled") sessionChemistry = chemResult.value;
+      if (progResult.status === "fulfilled") userProgress = progResult.value;
+      if (agResult.status === "fulfilled") antiGamingResult = agResult.value;
+      if (levelsResult.status === "fulfilled" && levelsResult.value.length > 0) {
+        relationshipLevels = levelsResult.value;
+      }
+    } catch (e) { console.error("Experience systems init error:", e); }
+
+    // Re-fetch vibe with correct level now that we know it
+    try {
+      dailyVibe = await getOrGenerateDailyVibe(supabase, user.id, persona.id, userProgress.currentLevel, persona.warmth, persona.tease_level);
+    } catch (e) { /* already have fallback */ }
+
+    // Find level name for prompt
+    const currentLevelDef = relationshipLevels.find(l => l.levelNumber === userProgress.currentLevel);
+    const currentLevelName = currentLevelDef?.levelName || "Just Met";
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -131,6 +185,12 @@ export async function POST(request: NextRequest) {
     // ── STEP 2: Generate AI response (always works — this is the core) ──
     let aiResponse: string;
     let responseSource = "claude";
+
+    // Build behavior adaptation prompt context (System 7)
+    const vibeContext = buildVibePromptContext(dailyVibe);
+    const chemistryContext = buildChemistryPromptContext(sessionChemistry);
+    const relationshipContext = buildRelationshipPromptContext(userProgress.currentLevel, currentLevelName, userProgress.totalMessagesSent);
+    const behaviorContext = `\n\n${relationshipContext}\n${vibeContext}\n${chemistryContext}`;
 
     // Try routing engine, fall back to direct Claude if it fails
     try {
@@ -153,8 +213,8 @@ export async function POST(request: NextRequest) {
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
       } else {
-        // Claude fallback with optional memory callback
-        let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+        // Claude fallback with behavior adaptation context
+        let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message) + behaviorContext;
         try {
           const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
           if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
@@ -168,7 +228,7 @@ export async function POST(request: NextRequest) {
       logRoutingDecision(supabase, convId, message, routingDecision, currentTensionScore, aiResponse).catch(console.error);
     } catch (routingError) {
       console.error("Routing engine error, falling back to Claude:", routingError);
-      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message) + behaviorContext;
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
@@ -192,6 +252,60 @@ export async function POST(request: NextRequest) {
         justUnlockedReward: false,
       });
     } catch (e) { console.error("Tension update error:", e); }
+
+    // ── STEP 4b: Update session chemistry, XP, hidden progress, surprise gestures ──
+    let levelUpResult: import("@/lib/engine").LevelUpResult | null = null;
+    let surpriseGesture: import("@/lib/engine").SurpriseGesture | null = null;
+    try {
+      // Update session chemistry based on message quality
+      sessionChemistry = await updateSessionChemistry(supabase, user.id, persona.id, messageQuality);
+
+      // Apply anti-gaming multiplier to XP
+      const adjustedXp = Math.round(messageQuality.xpAwarded * antiGamingResult.xpMultiplier);
+
+      // Add XP and check for level up
+      if (adjustedXp > 0) {
+        levelUpResult = await addXpAndCheckLevelUp(
+          supabase, user.id, persona.id, adjustedXp, messageQuality.label === "high",
+        );
+      }
+
+      // Update hidden progress
+      await updateHiddenProgress(supabase, user.id, persona.id, messageQuality, sessionChemistry, {
+        repetitionPenalty: antiGamingResult.state.repetitionPenalty,
+        burstPenalty: antiGamingResult.state.burstPenalty,
+        topicDiversity: antiGamingResult.state.topicDiversity,
+      });
+
+      // Evaluate surprise gesture
+      surpriseGesture = await evaluateSurpriseGesture(supabase, user.id, persona.id, {
+        relationshipLevel: levelUpResult?.newLevel ?? userProgress.currentLevel,
+        chemistry: sessionChemistry,
+        dailyVibe,
+        hiddenProgress: await getOrCreateHiddenProgress(supabase, user.id, persona.id),
+        messageCount: currentMessageCount + 2,
+      });
+
+      // If surprise delivered, reset hidden progress readiness
+      if (surpriseGesture?.shouldTrigger) {
+        await recordSurpriseDelivered(supabase, user.id, persona.id);
+      }
+
+      // Log message quality (non-blocking)
+      supabase.from("message_quality_log").insert({
+        user_id: user.id,
+        persona_id: persona.id,
+        conversation_id: convId,
+        quality_label: messageQuality.label,
+        quality_score: messageQuality.score,
+        effort_score: messageQuality.effort,
+        warmth_score: messageQuality.warmth,
+        relevance_score: messageQuality.relevance,
+        repetition_score: messageQuality.repetition,
+        spam_score: messageQuality.spam,
+        xp_awarded: adjustedXp,
+      }).then(() => {}).catch((e: unknown) => console.error("Quality log error:", e));
+    } catch (e) { console.error("Post-response processing error:", e); }
 
     // ── STEP 5: Check for premium moment injection (safe) ──
     let injectedMoment = null;
@@ -269,6 +383,34 @@ export async function POST(request: NextRequest) {
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id, line: continuationPrompt.continuation_line,
         cta: continuationPrompt.popup_cta, price: continuationPrompt.price,
+      } : null,
+      // New experience system data
+      relationship: levelUpResult ? {
+        level: levelUpResult.newLevel,
+        levelName: levelUpResult.levelName,
+        leveledUp: levelUpResult.leveledUp,
+        xpGained: levelUpResult.xpGained,
+        currentLevelXp: levelUpResult.currentLevelXp,
+        nextLevelXp: levelUpResult.nextLevelXp,
+        xpInCurrentLevel: levelUpResult.xpInCurrentLevel,
+        rewards: levelUpResult.leveledUp ? levelUpResult.rewards.map(r => ({
+          id: r.id,
+          mediaType: r.mediaType,
+          mediaUrl: r.mediaUrl,
+          thumbnailUrl: r.thumbnailUrl,
+          caption: r.caption,
+        })) : [],
+      } : null,
+      surprise: surpriseGesture?.shouldTrigger ? {
+        gestureType: surpriseGesture.gestureType,
+        triggerReason: surpriseGesture.triggerReason,
+        reward: surpriseGesture.reward ? {
+          id: surpriseGesture.reward.id,
+          mediaType: surpriseGesture.reward.mediaType,
+          mediaUrl: surpriseGesture.reward.mediaUrl,
+          thumbnailUrl: surpriseGesture.reward.thumbnailUrl,
+          caption: surpriseGesture.reward.caption,
+        } : null,
       } : null,
     });
   } catch (error) {
