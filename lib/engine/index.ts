@@ -112,3 +112,14 @@ export {
   type AntiGamingState,
   type AntiGamingResult,
 } from "./anti-gaming";
+
+export {
+  evaluateFirstReveal,
+  selectLeadIn,
+  recordPromptEvent,
+  getProfileSubscriptionState,
+  FIRST_REVEAL_THRESHOLDS,
+  type FirstRevealContext,
+  type FirstRevealDecision,
+  type PromptEventInput,
+} from "./subscription-trigger";

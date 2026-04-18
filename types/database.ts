@@ -33,6 +33,8 @@ export interface Database {
           is_subscribed: boolean;
           is_admin: boolean;
           subscription_expires_at: string | null;
+          first_subscription_prompt_at: string | null;
+          subscription_dismissed_until: string | null;
           push_token: string | null;
           push_enabled: boolean;
           timezone: string;
@@ -49,6 +51,8 @@ export interface Database {
           is_subscribed?: boolean;
           is_admin?: boolean;
           subscription_expires_at?: string | null;
+          first_subscription_prompt_at?: string | null;
+          subscription_dismissed_until?: string | null;
           push_token?: string | null;
           push_enabled?: boolean;
           timezone?: string;
@@ -65,6 +69,8 @@ export interface Database {
           is_subscribed?: boolean;
           is_admin?: boolean;
           subscription_expires_at?: string | null;
+          first_subscription_prompt_at?: string | null;
+          subscription_dismissed_until?: string | null;
           push_token?: string | null;
           push_enabled?: boolean;
           timezone?: string;
@@ -1554,6 +1560,34 @@ export interface Database {
           reward_id: string;
           level_id: string;
           persona_id: string;
+        };
+        Update: {};
+      };
+      subscription_prompt_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id: string | null;
+          event_type: 'impression' | 'dismiss' | 'click' | 'trial_start' | 'reveal';
+          chemistry_score: number | null;
+          tension_score: number | null;
+          relationship_momentum: number | null;
+          message_quality_label: string | null;
+          context: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id?: string | null;
+          event_type: 'impression' | 'dismiss' | 'click' | 'trial_start' | 'reveal';
+          chemistry_score?: number | null;
+          tension_score?: number | null;
+          relationship_momentum?: number | null;
+          message_quality_label?: string | null;
+          context?: Json;
         };
         Update: {};
       };

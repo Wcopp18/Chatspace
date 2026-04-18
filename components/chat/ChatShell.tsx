@@ -10,6 +10,7 @@ import TensionMeter from "./TensionMeter";
 import type { RelationshipData } from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
 import RewardPopup from "./RewardPopup";
+import FirstRevealPopup from "./FirstRevealPopup";
 import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
@@ -103,6 +104,11 @@ export default function ChatShell({
   const [relationship, setRelationship] = useState<RelationshipData | null>(null);
   const [pendingLevelUp, setPendingLevelUp] = useState<{ level: number; levelName: string; rewards: Array<{ id: string; mediaType: "image" | "video" | "note"; mediaUrl: string | null; thumbnailUrl: string | null; caption: string | null }> } | null>(null);
   const [pendingSurprise, setPendingSurprise] = useState<{ gestureType: string; triggerReason: string; reward: { id: string; mediaType: "image" | "video" | "note"; mediaUrl: string | null; thumbnailUrl: string | null; caption: string | null } | null } | null>(null);
+  const [firstReveal, setFirstReveal] = useState<{
+    chemistryScore: number;
+    tensionScore: number;
+    relationshipMomentum: number;
+  } | null>(null);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -251,6 +257,23 @@ export default function ChatShell({
         // Handle surprise gesture
         if (data.surprise) {
           setPendingSurprise(data.surprise);
+        }
+
+        // Handle first-reveal subscription trigger — append lead-in as a
+        // follow-up message, then open popup shortly after
+        if (data.subscriptionReveal) {
+          const { leadInMessage, chemistryScore, tensionScore, relationshipMomentum } = data.subscriptionReveal;
+          setTimeout(() => {
+            setMessages((prev) => [...prev, {
+              id: `reveal-lead-${Date.now()}`,
+              role: "assistant",
+              content: leadInMessage,
+              createdAt: new Date().toISOString(),
+            }]);
+          }, 700);
+          setTimeout(() => {
+            setFirstReveal({ chemistryScore, tensionScore, relationshipMomentum });
+          }, 1400);
         }
       }
     } catch (err) {
@@ -416,6 +439,21 @@ export default function ChatShell({
           onMoveToSidebar={() => {
             // Rewards move to sidebar conceptually — dismiss popup
           }}
+        />
+      )}
+
+      {/* First-reveal subscription popup — only after user earns it */}
+      {firstReveal && (
+        <FirstRevealPopup
+          personaName={persona.display_name}
+          personaId={persona.id}
+          conversationId={conversationId}
+          chemistrySnapshot={firstReveal}
+          onSubscribed={() => {
+            setFirstReveal(null);
+            router.refresh();
+          }}
+          onDismiss={() => setFirstReveal(null)}
         />
       )}
     </div>

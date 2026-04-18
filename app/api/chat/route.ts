@@ -31,6 +31,10 @@ import {
   evaluateSurpriseGesture,
   evaluateAntiGaming,
   DEFAULT_LEVELS,
+  evaluateFirstReveal,
+  selectLeadIn,
+  recordPromptEvent,
+  getProfileSubscriptionState,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -307,6 +311,66 @@ export async function POST(request: NextRequest) {
       }).then(() => {}, (e: unknown) => console.error("Quality log error:", e));
     } catch (e) { console.error("Post-response processing error:", e); }
 
+    // ── STEP 4c: First-reveal subscription trigger (safe) ──
+    let subscriptionReveal: {
+      leadInMessage: string;
+      chemistryScore: number;
+      tensionScore: number;
+      relationshipMomentum: number;
+    } | null = null;
+    try {
+      const subState = await getProfileSubscriptionState(supabase, user.id);
+      if (!subState.isSubscribed) {
+        const hp = await getOrCreateHiddenProgress(supabase, user.id, persona.id);
+        const decision = evaluateFirstReveal({
+          isSubscribed: subState.isSubscribed,
+          dismissedUntil: subState.dismissedUntil,
+          chemistry: sessionChemistry,
+          hiddenProgress: hp,
+          messageQuality,
+          antiGaming: antiGamingResult,
+          totalMessagesSent: userProgress.totalMessagesSent + 1,
+        });
+        if (decision.shouldTrigger) {
+          const leadIn = selectLeadIn(`${user.id}:${persona.id}`);
+
+          // Persist lead-in as a follow-up assistant message so it survives refresh
+          await supabase.from("messages").insert({
+            conversation_id: convId,
+            role: "assistant",
+            content: leadIn,
+            source: "subscription_lead_in",
+          });
+
+          // Mark first-prompt timestamp if this is the user's first ever impression
+          if (!subState.firstPromptAt) {
+            await supabase.from("profiles")
+              .update({ first_subscription_prompt_at: new Date().toISOString() })
+              .eq("id", user.id);
+          }
+
+          subscriptionReveal = {
+            leadInMessage: leadIn,
+            chemistryScore: sessionChemistry.score,
+            tensionScore: tensionResult.newScore,
+            relationshipMomentum: hp.relationshipMomentum,
+          };
+
+          await recordPromptEvent(supabase, {
+            userId: user.id,
+            personaId: persona.id,
+            conversationId: convId,
+            eventType: "impression",
+            chemistryScore: sessionChemistry.score,
+            tensionScore: tensionResult.newScore,
+            relationshipMomentum: hp.relationshipMomentum,
+            messageQualityLabel: messageQuality.label,
+            context: { lead_in: leadIn, positive_streak: sessionChemistry.positiveStreak },
+          });
+        }
+      }
+    } catch (e) { console.error("Subscription trigger error:", e); }
+
     // ── STEP 5: Check for premium moment injection (safe) ──
     let injectedMoment = null;
     try {
@@ -401,6 +465,7 @@ export async function POST(request: NextRequest) {
           caption: r.caption,
         })) : [],
       } : null,
+      subscriptionReveal,
       surprise: surpriseGesture?.shouldTrigger ? {
         gestureType: surpriseGesture.gestureType,
         triggerReason: surpriseGesture.triggerReason,
