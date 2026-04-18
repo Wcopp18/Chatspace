@@ -49,18 +49,19 @@ export async function POST(
       .upload(path, bytes, { contentType: file.type, upsert: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    // Short-lived preview URL only — stored value is the path; signed URLs
+    // are minted on-demand by /api/media/moment/[id] at display time.
     const { data, error: signedUrlError } = await admin.storage
       .from("moments")
-      .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year signed URL
+      .createSignedUrl(path, 300);
     if (signedUrlError || !data?.signedUrl) {
       return NextResponse.json(
-        { error: signedUrlError?.message || "Failed to create signed URL" },
+        { error: signedUrlError?.message || "Failed to create preview URL" },
         { status: 500 }
       );
     }
-    const signedUrl = data.signedUrl;
+    url = data.signedUrl;
 
-    url = signedUrl;
     await admin.from("moments").update({ media_url: path, updated_at: new Date().toISOString() }).eq("id", id);
   }
 

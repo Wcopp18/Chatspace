@@ -123,3 +123,9 @@ export {
   type FirstRevealDecision,
   type PromptEventInput,
 } from "./subscription-trigger";
+
+export {
+  countUserMessagesToday,
+  isOverFreeLimit,
+  type FreeLimitResult,
+} from "./message-quota";

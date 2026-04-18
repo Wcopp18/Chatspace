@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = checkRateLimit(`signup:${ip}`, 5, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many signup attempts. Try again in a minute." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+      );
+    }
+
     const { email, password, display_name } = await request.json();
 
     if (!email || !password) {

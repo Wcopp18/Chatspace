@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getAIProvider } from "@/lib/ai";
 import { buildContextualPrompt } from "@/lib/ai/persona-engine";
 import { calculateEmotionScore, shouldTriggerContinuation } from "@/lib/utils";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { isOverFreeLimit } from "@/lib/engine/message-quota";
+import { resolveMediaUrl } from "@/lib/media/signed-urls";
 import {
   routeResponse,
   recordResponseUsage,
@@ -51,6 +54,29 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Per-user burst limit
+    const rl = checkRateLimit(`chat:${user.id}`, 20, 60_000);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Slow down — she's reading your messages.", retryAfter: rl.retryAfterSec },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
+      );
+    }
+
+    // Free-tier daily cap (subscribed users bypass)
+    const { data: profileRow } = await supabase
+      .from("profiles").select("is_subscribed").eq("id", user.id).single() as { data: { is_subscribed: boolean } | null };
+    const isSubscribed = profileRow?.is_subscribed ?? false;
+    if (!isSubscribed) {
+      const quota = await isOverFreeLimit(supabase, user.id, isSubscribed);
+      if (quota.over) {
+        return NextResponse.json(
+          { error: "free_tier_cap", messagesUsed: quota.count, freeLimit: quota.limit, reason: "Subscribe to keep chatting." },
+          { status: 402 },
+        );
+      }
     }
 
     const body = await request.json();
@@ -430,6 +456,28 @@ export async function POST(request: NextRequest) {
       }).eq("id", convId);
     } catch (e) { console.error("Conversation update error:", e); }
 
+    // Resolve paid-media paths to short-lived signed URLs for the response.
+    // Stored values may be storage paths (new) or legacy full URLs (passthrough).
+    const MEDIA_TTL = 300;
+    const resolvedLevelRewards = levelUpResult?.leveledUp
+      ? await Promise.all(levelUpResult.rewards.map(async (r) => ({
+          id: r.id,
+          mediaType: r.mediaType,
+          mediaUrl: await resolveMediaUrl(supabase, "level-rewards", r.mediaUrl, MEDIA_TTL),
+          thumbnailUrl: r.thumbnailUrl,
+          caption: r.caption,
+        })))
+      : [];
+    const resolvedSurpriseReward = surpriseGesture?.reward
+      ? {
+          id: surpriseGesture.reward.id,
+          mediaType: surpriseGesture.reward.mediaType,
+          mediaUrl: await resolveMediaUrl(supabase, "level-rewards", surpriseGesture.reward.mediaUrl, MEDIA_TTL),
+          thumbnailUrl: surpriseGesture.reward.thumbnailUrl,
+          caption: surpriseGesture.reward.caption,
+        }
+      : null;
+
     // ── STEP 8: Return response ──
     return NextResponse.json({
       message: aiResponse,
@@ -457,25 +505,13 @@ export async function POST(request: NextRequest) {
         currentLevelXp: levelUpResult.currentLevelXp,
         nextLevelXp: levelUpResult.nextLevelXp,
         xpInCurrentLevel: levelUpResult.xpInCurrentLevel,
-        rewards: levelUpResult.leveledUp ? levelUpResult.rewards.map(r => ({
-          id: r.id,
-          mediaType: r.mediaType,
-          mediaUrl: r.mediaUrl,
-          thumbnailUrl: r.thumbnailUrl,
-          caption: r.caption,
-        })) : [],
+        rewards: resolvedLevelRewards,
       } : null,
       subscriptionReveal,
       surprise: surpriseGesture?.shouldTrigger ? {
         gestureType: surpriseGesture.gestureType,
         triggerReason: surpriseGesture.triggerReason,
-        reward: surpriseGesture.reward ? {
-          id: surpriseGesture.reward.id,
-          mediaType: surpriseGesture.reward.mediaType,
-          mediaUrl: surpriseGesture.reward.mediaUrl,
-          thumbnailUrl: surpriseGesture.reward.thumbnailUrl,
-          caption: surpriseGesture.reward.caption,
-        } : null,
+        reward: resolvedSurpriseReward,
       } : null,
     });
   } catch (error) {

@@ -109,6 +109,7 @@ export default function ChatShell({
     tensionScore: number;
     relationshipMomentum: number;
   } | null>(null);
+  const [limitBanner, setLimitBanner] = useState<{ kind: "burst" | "quota"; message: string } | null>(null);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -169,6 +170,21 @@ export default function ChatShell({
       });
 
       const data = await res.json();
+
+      // Handle rate-limit / free-tier cap before anything else
+      if (res.status === 429) {
+        setLimitBanner({ kind: "burst", message: data.error || "Slow down a second." });
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        return;
+      }
+      if (res.status === 402 && data.error === "free_tier_cap") {
+        setLimitBanner({
+          kind: "quota",
+          message: `You've used your ${data.freeLimit} free messages today. Subscribe to keep chatting.`,
+        });
+        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        return;
+      }
 
       if (data.message) {
         if (!conversationId && data.conversationId) {
@@ -392,6 +408,27 @@ export default function ChatShell({
             }}
             onDismiss={() => setShowCustomRequest(false)}
           />
+        </div>
+      )}
+
+      {limitBanner && (
+        <div
+          className="mx-4 mb-2 rounded-xl px-4 py-3 text-sm text-white/90 flex items-center justify-between"
+          style={{
+            background: limitBanner.kind === "quota"
+              ? "linear-gradient(135deg, rgba(236, 72, 153, 0.22) 0%, rgba(168, 85, 247, 0.18) 100%)"
+              : "rgba(168, 85, 247, 0.15)",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}
+        >
+          <span>{limitBanner.message}</span>
+          <button
+            type="button"
+            onClick={() => setLimitBanner(null)}
+            className="ml-3 text-white/60 hover:text-white/90 text-xs underline-offset-4 hover:underline"
+          >
+            dismiss
+          </button>
         </div>
       )}
 

@@ -55,20 +55,19 @@ export async function POST(
       .upload(path, bytes, { contentType: file.type, upsert: true });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // For level rewards (free content), store the storage path
-    // The frontend will request a signed URL when displaying
+    // Short-lived preview URL only — stored value is the path; signed URLs
+    // are minted on-demand by /api/media/reward/[id] at display time.
     const { data, error: signedUrlError } = await admin.storage
       .from("level-rewards")
-      .createSignedUrl(path, 60 * 60 * 24 * 365);
-
+      .createSignedUrl(path, 300);
     if (signedUrlError || !data?.signedUrl) {
       return NextResponse.json(
-        { error: signedUrlError?.message || "Failed to create signed URL" },
+        { error: signedUrlError?.message || "Failed to create preview URL" },
         { status: 500 }
       );
     }
-
     url = data.signedUrl;
+
     await admin.from("relationship_level_rewards")
       .update({ media_url: path })
       .eq("id", rewardId);
