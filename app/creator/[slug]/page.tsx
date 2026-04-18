@@ -37,6 +37,13 @@ export default async function CreatorPersonaPage({ params }: Props) {
     .select("*")
     .eq("persona_id", persona.id);
 
+  const { data: relationshipLevels } = await supabase
+    .from("relationship_levels")
+    .select("*, relationship_level_rewards(*)")
+    .eq("persona_id", persona.id)
+    .eq("is_active", true)
+    .order("level_number", { ascending: true });
+
   return (
     <PersonaEditor
       persona={persona}
@@ -44,6 +51,7 @@ export default async function CreatorPersonaPage({ params }: Props) {
       moments={moments || []}
       continuationPrompts={continuationPrompts || []}
       personaId={persona.id}
+      relationshipLevels={relationshipLevels || []}
     />
   );
 }

@@ -14,17 +14,21 @@ interface TensionData {
   phrase?: { phrase: string | null; type: "rising" | "dip" | "foreshadow" | null } | null;
 }
 
+export interface RelationshipData {
+  level: number;
+  levelName: string;
+  leveledUp: boolean;
+  xpGained: number;
+  currentLevelXp: number;
+  nextLevelXp: number;
+  xpInCurrentLevel: number;
+}
+
 interface Props {
   tension: TensionData | null;
   personaName: string;
+  relationship?: RelationshipData | null;
 }
-
-const ZONE_LABELS: { key: TensionBand; label: string; emoji: string }[] = [
-  { key: "warming_up", label: "Warming Up", emoji: "🔥" },
-  { key: "image_zone", label: "Image Zone", emoji: "📸" },
-  { key: "premium_zone", label: "Rare Image", emoji: "💎" },
-  { key: "video_zone", label: "Video Zone", emoji: "🎬" },
-];
 
 function getPhraseGlow(type: "rising" | "dip" | "foreshadow" | null): string {
   switch (type) {
@@ -44,7 +48,7 @@ function getPhraseColor(type: "rising" | "dip" | "foreshadow" | null): string {
   }
 }
 
-export default function TensionMeter({ tension, personaName }: Props) {
+export default function TensionMeter({ tension, personaName, relationship }: Props) {
   const [displayScore, setDisplayScore] = useState(0);
   const [showDelta, setShowDelta] = useState(false);
   const [shake, setShake] = useState(false);
@@ -142,8 +146,11 @@ export default function TensionMeter({ tension, personaName }: Props) {
               WebkitTextFillColor: "transparent",
             }}
           >
-            Tension Meter
+            {relationship ? relationship.levelName : "Tension Meter"}
           </span>
+          {relationship && (
+            <span className="text-white/30 text-[10px] font-medium">Lv.{relationship.level}</span>
+          )}
           {/* Lightning bolt on increase */}
           <AnimatePresence>
             {showBolt && (
@@ -269,24 +276,20 @@ export default function TensionMeter({ tension, personaName }: Props) {
         </AnimatePresence>
       </motion.div>
 
-      {/* Zone labels */}
-      <div className="flex justify-between mt-3">
-        {ZONE_LABELS.map((zone) => {
-          const isActive = tension.band === zone.key;
-          return (
-            <motion.span
-              key={zone.key}
-              className={`text-[11px] font-semibold transition-colors ${
-                isActive ? "text-white" : "text-white/25"
-              }`}
-              animate={isActive && shake ? { scale: [1, 1.15, 1] } : {}}
-              transition={{ duration: 0.5 }}
-            >
-              {isActive && <span className="mr-0.5">{zone.emoji}</span>}
-              {zone.label}
-            </motion.span>
-          );
-        })}
+      {/* Zone labels or XP progress */}
+      <div className="flex justify-between items-center mt-3">
+        {relationship ? (
+          <>
+            <span className="text-white/40 text-[11px] font-medium">
+              +{relationship.xpGained} XP
+            </span>
+            <span className="text-white/30 text-[11px]">
+              {relationship.xpInCurrentLevel} / {relationship.nextLevelXp - relationship.currentLevelXp} XP
+            </span>
+          </>
+        ) : (
+          <span className="text-white/30 text-[11px]">Keep the vibe going</span>
+        )}
       </div>
 
       {/* Reward triggered flash */}

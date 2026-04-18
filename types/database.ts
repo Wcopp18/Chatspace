@@ -1212,6 +1212,351 @@ export interface Database {
         };
         Update: {};
       };
+      relationship_levels: {
+        Row: {
+          id: string;
+          persona_id: string;
+          level_number: number;
+          level_name: string;
+          xp_required: number;
+          description: string | null;
+          color_hex: string;
+          icon: string | null;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          persona_id: string;
+          level_number: number;
+          level_name: string;
+          xp_required: number;
+          description?: string | null;
+          color_hex?: string;
+          icon?: string | null;
+          is_active?: boolean;
+          sort_order?: number;
+        };
+        Update: {
+          level_name?: string;
+          xp_required?: number;
+          description?: string | null;
+          color_hex?: string;
+          icon?: string | null;
+          is_active?: boolean;
+          sort_order?: number;
+        };
+      };
+      relationship_level_rewards: {
+        Row: {
+          id: string;
+          level_id: string;
+          persona_id: string;
+          media_type: string;
+          media_url: string | null;
+          thumbnail_url: string | null;
+          caption: string | null;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          level_id: string;
+          persona_id: string;
+          media_type: string;
+          media_url?: string | null;
+          thumbnail_url?: string | null;
+          caption?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+        Update: {
+          media_type?: string;
+          media_url?: string | null;
+          thumbnail_url?: string | null;
+          caption?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+        };
+      };
+      user_relationship_progress: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          current_level: number;
+          current_xp: number;
+          total_xp_earned: number;
+          total_messages_sent: number;
+          total_quality_messages: number;
+          longest_streak: number;
+          current_streak: number;
+          last_message_date: string | null;
+          level_completed_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          current_level?: number;
+          current_xp?: number;
+          total_xp_earned?: number;
+          total_messages_sent?: number;
+          total_quality_messages?: number;
+          longest_streak?: number;
+          current_streak?: number;
+          last_message_date?: string | null;
+          level_completed_count?: number;
+        };
+        Update: {
+          current_level?: number;
+          current_xp?: number;
+          total_xp_earned?: number;
+          total_messages_sent?: number;
+          total_quality_messages?: number;
+          longest_streak?: number;
+          current_streak?: number;
+          last_message_date?: string | null;
+          level_completed_count?: number;
+        };
+      };
+      daily_vibes: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          vibe_date: string;
+          vibe: string;
+          intensity: number;
+          generated_from: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          vibe_date?: string;
+          vibe: string;
+          intensity?: number;
+          generated_from?: Json;
+        };
+        Update: {
+          vibe?: string;
+          intensity?: number;
+          generated_from?: Json;
+        };
+      };
+      session_chemistry: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id: string | null;
+          score: number;
+          peak_score: number;
+          good_message_count: number;
+          bad_message_count: number;
+          total_session_messages: number;
+          positive_streak: number;
+          session_started_at: string;
+          last_message_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id?: string | null;
+          score?: number;
+          peak_score?: number;
+          good_message_count?: number;
+          bad_message_count?: number;
+          total_session_messages?: number;
+          positive_streak?: number;
+        };
+        Update: {
+          score?: number;
+          peak_score?: number;
+          good_message_count?: number;
+          bad_message_count?: number;
+          total_session_messages?: number;
+          positive_streak?: number;
+          last_message_at?: string;
+        };
+      };
+      hidden_progress: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          relationship_momentum: number;
+          consistency_score: number;
+          surprise_readiness: number;
+          next_reward_boost: number;
+          consecutive_good_days: number;
+          total_good_sessions: number;
+          messages_since_last_reward: number;
+          days_since_last_reward: number;
+          repetition_penalty: number;
+          burst_penalty: number;
+          topic_diversity_score: number;
+          last_reward_at: string | null;
+          last_good_message_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+        };
+        Update: {
+          relationship_momentum?: number;
+          consistency_score?: number;
+          surprise_readiness?: number;
+          next_reward_boost?: number;
+          consecutive_good_days?: number;
+          total_good_sessions?: number;
+          messages_since_last_reward?: number;
+          days_since_last_reward?: number;
+          repetition_penalty?: number;
+          burst_penalty?: number;
+          topic_diversity_score?: number;
+          last_reward_at?: string | null;
+          last_good_message_at?: string | null;
+        };
+      };
+      surprise_gestures: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id: string | null;
+          gesture_type: string;
+          reward_id: string | null;
+          trigger_reason: string;
+          relationship_level: number | null;
+          chemistry_score: number | null;
+          daily_vibe: string | null;
+          cooldown_until: string | null;
+          delivered_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id?: string | null;
+          gesture_type: string;
+          reward_id?: string | null;
+          trigger_reason: string;
+          relationship_level?: number | null;
+          chemistry_score?: number | null;
+          daily_vibe?: string | null;
+          cooldown_until?: string | null;
+        };
+        Update: {};
+      };
+      message_quality_log: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id: string | null;
+          message_id: string | null;
+          quality_label: string;
+          quality_score: number;
+          effort_score: number;
+          warmth_score: number;
+          relevance_score: number;
+          repetition_score: number;
+          spam_score: number;
+          xp_awarded: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          conversation_id?: string | null;
+          message_id?: string | null;
+          quality_label: string;
+          quality_score: number;
+          effort_score?: number;
+          warmth_score?: number;
+          relevance_score?: number;
+          repetition_score?: number;
+          spam_score?: number;
+          xp_awarded?: number;
+        };
+        Update: {};
+      };
+      anti_gaming_state: {
+        Row: {
+          id: string;
+          user_id: string;
+          persona_id: string;
+          recent_message_hashes: string[];
+          recent_topics: string[];
+          burst_count: number;
+          burst_window_start: string | null;
+          repeat_count: number;
+          same_topic_count: number;
+          reward_count_today: number;
+          reward_count_date: string | null;
+          diminishing_factor: number;
+          hard_cooldown_until: string | null;
+          soft_cooldown_until: string | null;
+          last_message_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          persona_id: string;
+          recent_message_hashes?: string[];
+          recent_topics?: string[];
+        };
+        Update: {
+          recent_message_hashes?: string[];
+          recent_topics?: string[];
+          burst_count?: number;
+          burst_window_start?: string | null;
+          repeat_count?: number;
+          same_topic_count?: number;
+          reward_count_today?: number;
+          reward_count_date?: string | null;
+          diminishing_factor?: number;
+          hard_cooldown_until?: string | null;
+          soft_cooldown_until?: string | null;
+          last_message_at?: string | null;
+        };
+      };
+      user_level_reward_claims: {
+        Row: {
+          id: string;
+          user_id: string;
+          reward_id: string;
+          level_id: string;
+          persona_id: string;
+          claimed_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          reward_id: string;
+          level_id: string;
+          persona_id: string;
+        };
+        Update: {};
+      };
     };
     Views: {};
     Functions: {
