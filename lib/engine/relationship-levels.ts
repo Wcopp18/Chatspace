@@ -227,7 +227,7 @@ export async function addXpAndCheckLevelUp(
           reward_id: reward.id,
           level_id: achievedLevel.id,
           persona_id: personaId,
-        }, { onConflict: "user_id,reward_id" }).catch(() => {});
+        }, { onConflict: "user_id,reward_id" }).then(() => {}, () => {});
       }
     }
   }

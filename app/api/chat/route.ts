@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
         repetition_score: messageQuality.repetition,
         spam_score: messageQuality.spam,
         xp_awarded: adjustedXp,
-      }).then(() => {}).catch((e: unknown) => console.error("Quality log error:", e));
+      }).then(() => {}, (e: unknown) => console.error("Quality log error:", e));
     } catch (e) { console.error("Post-response processing error:", e); }
 
     // ── STEP 5: Check for premium moment injection (safe) ──
