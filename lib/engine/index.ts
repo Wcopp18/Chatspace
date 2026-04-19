@@ -81,3 +81,10 @@ export {
   type ChemistryBand,
   type ChemistrySnapshot,
 } from "./chemistry-engine";
+
+export {
+  scoreMessage,
+  maxRepetitionSimilarity,
+  type QualityScore,
+  type QualityCategory,
+} from "./quality-engine";
