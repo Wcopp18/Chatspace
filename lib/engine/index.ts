@@ -105,3 +105,11 @@ export {
   type GestureDecision,
   type GestureDecisionInput,
 } from "./gesture-engine";
+
+export {
+  getRelationshipStage,
+  getStagePromptContext,
+  buildBehaviorBrief,
+  type RelationshipStage,
+  type BehaviorBriefInput,
+} from "./behavior-engine";
