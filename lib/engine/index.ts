@@ -72,3 +72,12 @@ export {
   type Vibe,
   type DailyVibeRecord,
 } from "./vibe-engine";
+
+export {
+  getChemistryBand,
+  getSurpriseMultiplier,
+  getChemistryPromptContext,
+  getChemistrySnapshot,
+  type ChemistryBand,
+  type ChemistrySnapshot,
+} from "./chemistry-engine";

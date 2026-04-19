@@ -19,6 +19,8 @@ import {
   getRelationshipSnapshot,
   getOrGenerateDailyVibe,
   getVibePromptContext,
+  getChemistrySnapshot,
+  getChemistryPromptContext,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -144,6 +146,13 @@ export async function POST(request: NextRequest) {
       vibePromptLine = getVibePromptContext(vibe.vibe, Number(vibe.intensity));
     } catch (e) { console.error("Vibe resolution error:", e); }
 
+    // ── STEP 0c: Resolve session chemistry (hidden tone layer) ──
+    let chemistryPromptLine = "";
+    try {
+      const chem = await getChemistrySnapshot(supabase, user.id, persona.id, convId);
+      chemistryPromptLine = getChemistryPromptContext(chem.band);
+    } catch (e) { console.error("Chemistry snapshot error:", e); }
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -177,9 +186,10 @@ export async function POST(request: NextRequest) {
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
       } else {
-        // Claude fallback with optional memory callback + daily vibe
+        // Claude fallback with optional memory callback + daily vibe + chemistry
         let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
         if (vibePromptLine) fullPrompt += `\n\n${vibePromptLine}`;
+        if (chemistryPromptLine) fullPrompt += `\n\n${chemistryPromptLine}`;
         try {
           const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
           if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
@@ -195,6 +205,7 @@ export async function POST(request: NextRequest) {
       console.error("Routing engine error, falling back to Claude:", routingError);
       let systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
       if (vibePromptLine) systemPrompt += `\n\n${vibePromptLine}`;
+      if (chemistryPromptLine) systemPrompt += `\n\n${chemistryPromptLine}`;
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
