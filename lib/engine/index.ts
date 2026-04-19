@@ -48,3 +48,17 @@ export {
   selectCallback,
   generateCallbacks,
 } from "./memory-engine";
+
+export {
+  calculateXpForMessage,
+  awardRelationshipXp,
+  getActiveLevels,
+  getOrCreateProgress,
+  getRelationshipSnapshot,
+  type RelationshipLevel,
+  type RelationshipLevelReward,
+  type UserRelationshipProgress,
+  type DeliveredReward,
+  type XpAwardResult,
+  type RelationshipSnapshot,
+} from "./relationship-engine";

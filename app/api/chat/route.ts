@@ -14,6 +14,9 @@ import {
   extractMemories,
   saveMemories,
   selectCallback,
+  calculateXpForMessage,
+  awardRelationshipXp,
+  getRelationshipSnapshot,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -193,6 +196,52 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) { console.error("Tension update error:", e); }
 
+    // ── STEP 4b: Award long-term relationship XP (safe) ──
+    let relationship: {
+      snapshot: Awaited<ReturnType<typeof getRelationshipSnapshot>> | null;
+      leveledUp: boolean;
+      levelUps: Array<{ fromLevel: number; toLevel: number; levelName: string }>;
+      rewardsDelivered: Array<{
+        id: string;
+        media_type: "image" | "video";
+        media_url: string;
+        thumbnail_url: string | null;
+        caption: string | null;
+        level_id: string;
+        level_name: string;
+        level_number: number;
+      }>;
+      xpAwarded: number;
+    } = { snapshot: null, leveledUp: false, levelUps: [], rewardsDelivered: [], xpAwarded: 0 };
+    try {
+      const xpAnalysis = analyzeMessage(message);
+      const xpCalc = calculateXpForMessage({
+        ...xpAnalysis,
+        responseSpeedSeconds: 0,
+        justUnlockedReward: false,
+      });
+      if (xpCalc.xp > 0) {
+        const result = await awardRelationshipXp(supabase, user.id, persona.id, xpCalc.xp, xpCalc.reason);
+        relationship.leveledUp = result.leveledUp;
+        relationship.levelUps = result.levelUpSummaries;
+        relationship.rewardsDelivered = result.rewardsDelivered;
+        relationship.xpAwarded = result.xpAwarded;
+      }
+      relationship.snapshot = await getRelationshipSnapshot(supabase, user.id, persona.id);
+
+      // Convert stored media paths to signed URLs for delivered rewards.
+      if (relationship.rewardsDelivered.length > 0) {
+        for (const r of relationship.rewardsDelivered) {
+          if (r.media_url && !r.media_url.startsWith("http")) {
+            const { data: signed } = await supabase.storage
+              .from("level-rewards")
+              .createSignedUrl(r.media_url, 60 * 60 * 24 * 7);
+            if (signed?.signedUrl) r.media_url = signed.signedUrl;
+          }
+        }
+      }
+    } catch (e) { console.error("Relationship XP error:", e); }
+
     // ── STEP 5: Check for premium moment injection (safe) ──
     let injectedMoment = null;
     try {
@@ -265,6 +314,7 @@ export async function POST(request: NextRequest) {
         phrase: tensionResult.phrase,
       },
       injectedMoment,
+      relationship,
       showCustomRequestCard,
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id, line: continuationPrompt.continuation_line,

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import ChatShell from "@/components/chat/ChatShell";
+import { getRelationshipSnapshot } from "@/lib/engine";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -64,6 +65,8 @@ export default async function ChatPage({ params }: Props) {
 
   const unlockedIds = new Set((unlocks || []).map((u) => u.moment_id));
 
+  const relationshipSnapshot = await getRelationshipSnapshot(supabase, user.id, persona.id).catch(() => null);
+
   return (
     <ChatShell
       persona={persona}
@@ -74,6 +77,7 @@ export default async function ChatPage({ params }: Props) {
         ...m,
         unlocked: unlockedIds.has(m.id),
       }))}
+      initialRelationship={relationshipSnapshot}
     />
   );
 }
