@@ -113,3 +113,10 @@ export {
   type RelationshipStage,
   type BehaviorBriefInput,
 } from "./behavior-engine";
+
+export {
+  evaluateAntiGaming,
+  type AntiGamingInput,
+  type AntiGamingDecision,
+  type RecentMessage,
+} from "./anti-gaming-engine";

@@ -26,6 +26,7 @@ import {
   recordDelivery,
   scoreMessage,
   buildBehaviorBrief,
+  evaluateAntiGaming,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -259,6 +260,35 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) { console.error("Tension update error:", e); }
 
+    // ── STEP 4a: Anti-gaming evaluation (runs before XP & gestures) ──
+    const recentUserMessagesFull = (messageHistory || [])
+      .filter(m => m.role === "user")
+      .slice(-15)
+      .reverse()
+      .map(m => ({ content: m.content, createdAt: m.created_at }));
+    const preQuality = scoreMessage(message, recentUserMessagesFull.map(r => r.content));
+    // Last reward or gesture time (max of tension reward and surprise gesture).
+    let lastRewardMs: number | null = null;
+    try {
+      const { data: tState } = await supabase
+        .from("tension_state").select("last_reward_at")
+        .eq("user_id", user.id).eq("persona_id", persona.id).single();
+      const { data: lastGesture } = await supabase
+        .from("user_surprise_gesture_deliveries").select("delivered_at")
+        .eq("user_id", user.id).eq("persona_id", persona.id)
+        .order("delivered_at", { ascending: false }).limit(1).single();
+      const tMs = tState?.last_reward_at ? Date.now() - new Date(tState.last_reward_at).getTime() : null;
+      const gMs = lastGesture?.delivered_at ? Date.now() - new Date(lastGesture.delivered_at).getTime() : null;
+      lastRewardMs = tMs === null ? gMs : gMs === null ? tMs : Math.min(tMs, gMs);
+    } catch { /* new user — safe to ignore */ }
+
+    const antiGaming = evaluateAntiGaming({
+      currentMessage: message,
+      recentUserMessages: recentUserMessagesFull,
+      quality: preQuality,
+      millisSinceLastReward: lastRewardMs,
+    });
+
     // ── STEP 4b: Award long-term relationship XP (safe) ──
     let relationship: {
       snapshot: Awaited<ReturnType<typeof getRelationshipSnapshot>> | null;
@@ -283,8 +313,9 @@ export async function POST(request: NextRequest) {
         responseSpeedSeconds: 0,
         justUnlockedReward: false,
       });
-      if (xpCalc.xp > 0) {
-        const result = await awardRelationshipXp(supabase, user.id, persona.id, xpCalc.xp, xpCalc.reason);
+      const effectiveXp = Math.round(xpCalc.xp * antiGaming.xpMultiplier);
+      if (effectiveXp > 0) {
+        const result = await awardRelationshipXp(supabase, user.id, persona.id, effectiveXp, `${xpCalc.reason}${antiGaming.reasons.length ? "|ag:" + antiGaming.reasons.join(",") : ""}`);
         relationship.leveledUp = result.leveledUp;
         relationship.levelUps = result.levelUpSummaries;
         relationship.rewardsDelivered = result.rewardsDelivered;
@@ -334,13 +365,9 @@ export async function POST(request: NextRequest) {
       caption: string | null;
     } | null = null;
     try {
-      // Skip gesture eval when the message was demonstrably bad.
-      const recentUserMessages = (messageHistory || [])
-        .filter(m => m.role === "user")
-        .slice(-10)
-        .map(m => m.content);
-      const quality = scoreMessage(message, recentUserMessages);
-      if (quality.category !== "low") {
+      // Anti-gaming gate + quality gate.
+      const quality = preQuality;
+      if (antiGaming.gestureAllowed && quality.category !== "low") {
         const gestures = await loadGesturesForPersona(supabase, persona.id);
         if (gestures.length > 0) {
           const hidden = await computeHiddenProgress(supabase, user.id, persona.id);
