@@ -93,3 +93,15 @@ export {
   computeHiddenProgress,
   type HiddenProgress,
 } from "./progress-engine";
+
+export {
+  evaluateGesture,
+  filterEligibleGestures,
+  loadGesturesForPersona,
+  loadCooldownMap,
+  recordDelivery,
+  type GestureType,
+  type SurpriseGesture,
+  type GestureDecision,
+  type GestureDecisionInput,
+} from "./gesture-engine";

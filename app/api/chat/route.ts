@@ -21,6 +21,12 @@ import {
   getVibePromptContext,
   getChemistrySnapshot,
   getChemistryPromptContext,
+  computeHiddenProgress,
+  loadGesturesForPersona,
+  loadCooldownMap,
+  evaluateGesture,
+  recordDelivery,
+  scoreMessage,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -295,6 +301,77 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) { console.error("Moment injection error:", e); }
 
+    // ── STEP 5a: Surprise gesture evaluation (free, spontaneous, safe) ──
+    let surpriseGesture: {
+      id: string;
+      gesture_type: string;
+      content_text: string | null;
+      media_url: string | null;
+      thumbnail_url: string | null;
+      caption: string | null;
+    } | null = null;
+    try {
+      // Skip gesture eval when the message was demonstrably bad.
+      const recentUserMessages = (messageHistory || [])
+        .filter(m => m.role === "user")
+        .slice(-10)
+        .map(m => m.content);
+      const quality = scoreMessage(message, recentUserMessages);
+      if (quality.category !== "low") {
+        const gestures = await loadGesturesForPersona(supabase, persona.id);
+        if (gestures.length > 0) {
+          const hidden = await computeHiddenProgress(supabase, user.id, persona.id);
+          const chem = await getChemistrySnapshot(supabase, user.id, persona.id, convId);
+          const vibeRow = await supabase
+            .from("persona_daily_vibes")
+            .select("vibe")
+            .eq("user_id", user.id)
+            .eq("persona_id", persona.id)
+            .eq("vibe_date", new Date().toISOString().slice(0, 10))
+            .single();
+          const todayVibe = (vibeRow.data?.vibe as string) || "playful";
+          const cooldownMap = await loadCooldownMap(supabase, user.id, persona.id, gestures.map(g => g.id));
+          const decision = evaluateGesture(
+            gestures,
+            {
+              hiddenProgressBoost: hidden.boost,
+              chemistryBand: chem.band,
+              chemistryMultiplier: chem.surpriseMultiplier,
+              relationshipLevel: hidden.relationshipLevel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              vibe: todayVibe as any,
+              qualityCategory: quality.category,
+            },
+            cooldownMap,
+          );
+          if (decision.shouldDeliver && decision.selectedGesture) {
+            const g = decision.selectedGesture;
+            let mediaUrl = g.media_url;
+            if (mediaUrl && !mediaUrl.startsWith("http")) {
+              const { data: signed } = await supabase.storage
+                .from("level-rewards")
+                .createSignedUrl(mediaUrl, 60 * 60 * 24 * 7);
+              if (signed?.signedUrl) mediaUrl = signed.signedUrl;
+            }
+            surpriseGesture = {
+              id: g.id,
+              gesture_type: g.gesture_type,
+              content_text: g.content_text,
+              media_url: mediaUrl,
+              thumbnail_url: g.thumbnail_url,
+              caption: g.caption,
+            };
+            await recordDelivery(supabase, user.id, persona.id, g.id, {
+              chemistryBand: chem.band,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              vibe: todayVibe as any,
+              boost: hidden.boost,
+            });
+          }
+        }
+      }
+    } catch (e) { console.error("Gesture eval error:", e); }
+
     // ── STEP 5b: Detect custom request intent ──
     const customRequestPatterns = [
       /custom\s*(vid|video|image|photo|pic|content)/i,
@@ -349,6 +426,7 @@ export async function POST(request: NextRequest) {
       },
       injectedMoment,
       relationship,
+      surpriseGesture,
       showCustomRequestCard,
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id, line: continuationPrompt.continuation_line,

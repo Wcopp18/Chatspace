@@ -10,6 +10,7 @@ import TensionMeter from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
 import RelationshipMeter, { type RelationshipSnapshot } from "./RelationshipMeter";
 import LevelRewardModal, { type DeliveredReward } from "./LevelRewardModal";
+import SurpriseGestureToast, { type SurpriseGesturePayload } from "./SurpriseGestureToast";
 import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
@@ -106,6 +107,7 @@ export default function ChatShell({
   const [levelUps, setLevelUps] = useState<Array<{ fromLevel: number; toLevel: number; levelName: string }>>([]);
   const [lastXpAwarded, setLastXpAwarded] = useState(0);
   const [pendingRewards, setPendingRewards] = useState<DeliveredReward[]>([]);
+  const [surpriseGesture, setSurpriseGesture] = useState<SurpriseGesturePayload | null>(null);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -189,6 +191,11 @@ export default function ChatShell({
           if (data.relationship.rewardsDelivered?.length > 0) {
             setPendingRewards(data.relationship.rewardsDelivered);
           }
+        }
+
+        // Surprise gesture (free spontaneous gift)
+        if (data.surpriseGesture) {
+          setSurpriseGesture(data.surpriseGesture);
         }
 
         // Update tension meter
@@ -413,6 +420,13 @@ export default function ChatShell({
           onDismiss={() => setPendingRewards([])}
         />
       )}
+
+      {/* Surprise gesture toast (free, spontaneous) */}
+      <SurpriseGestureToast
+        gesture={surpriseGesture}
+        personaName={persona.display_name}
+        onDismiss={() => setSurpriseGesture(null)}
+      />
     </div>
   );
 }
