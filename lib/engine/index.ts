@@ -88,3 +88,8 @@ export {
   type QualityScore,
   type QualityCategory,
 } from "./quality-engine";
+
+export {
+  computeHiddenProgress,
+  type HiddenProgress,
+} from "./progress-engine";
