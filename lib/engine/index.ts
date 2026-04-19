@@ -62,3 +62,13 @@ export {
   type XpAwardResult,
   type RelationshipSnapshot,
 } from "./relationship-engine";
+
+export {
+  pickVibe,
+  getTodayVibe,
+  getOrGenerateDailyVibe,
+  getVibePromptContext,
+  ALL_VIBES,
+  type Vibe,
+  type DailyVibeRecord,
+} from "./vibe-engine";

@@ -17,6 +17,8 @@ import {
   calculateXpForMessage,
   awardRelationshipXp,
   getRelationshipSnapshot,
+  getOrGenerateDailyVibe,
+  getVibePromptContext,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -123,6 +125,25 @@ export async function POST(request: NextRequest) {
 
     const currentMessageCount = conversation?.message_count || 0;
 
+    // ── STEP 0b: Resolve today's hidden vibe (invisible to user) ──
+    let vibePromptLine = "";
+    try {
+      const snapshotForVibe = await getRelationshipSnapshot(supabase, user.id, persona.id).catch(() => null);
+      const relationshipLevel = snapshotForVibe?.currentLevelNumber || 1;
+      const { data: progressRow } = await supabase
+        .from("user_relationship_progress")
+        .select("last_message_at")
+        .eq("user_id", user.id)
+        .eq("persona_id", persona.id)
+        .single();
+      const lastMessageAt = progressRow?.last_message_at || null;
+      const vibe = await getOrGenerateDailyVibe(supabase, user.id, persona.id, {
+        relationshipLevel,
+        lastMessageAt,
+      });
+      vibePromptLine = getVibePromptContext(vibe.vibe, Number(vibe.intensity));
+    } catch (e) { console.error("Vibe resolution error:", e); }
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -156,8 +177,9 @@ export async function POST(request: NextRequest) {
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
       } else {
-        // Claude fallback with optional memory callback
+        // Claude fallback with optional memory callback + daily vibe
         let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+        if (vibePromptLine) fullPrompt += `\n\n${vibePromptLine}`;
         try {
           const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
           if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
@@ -171,7 +193,8 @@ export async function POST(request: NextRequest) {
       logRoutingDecision(supabase, convId, message, routingDecision, currentTensionScore, aiResponse).catch(console.error);
     } catch (routingError) {
       console.error("Routing engine error, falling back to Claude:", routingError);
-      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      let systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      if (vibePromptLine) systemPrompt += `\n\n${vibePromptLine}`;
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
