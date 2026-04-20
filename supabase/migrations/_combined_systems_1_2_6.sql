@@ -81,18 +81,10 @@ create index if not exists idx_relationship_level_rewards_level
 
 alter table relationship_level_rewards enable row level security;
 
--- NB: this policy references user_level_reward_claims which is defined a few
--- blocks below; Postgres resolves referenced objects at statement execution,
--- not at policy creation, so forward reference is safe.
-drop policy if exists "Users can view rewards they have claimed" on relationship_level_rewards;
-create policy "Users can view rewards they have claimed"
-  on relationship_level_rewards for select using (
-    is_active = true and exists (
-      select 1 from user_level_reward_claims c
-      where c.reward_id = relationship_level_rewards.id
-        and c.user_id = auth.uid()
-    )
-  );
+-- NB: the "Users can view rewards they have claimed" policy on this table
+-- references user_level_reward_claims, which Postgres resolves at CREATE
+-- POLICY time (not at query time). So that policy is defined further down,
+-- after user_level_reward_claims is created.
 
 drop policy if exists "Service role manages level rewards" on relationship_level_rewards;
 create policy "Service role manages level rewards"
@@ -155,6 +147,18 @@ create policy "Users can update own claims"
 drop policy if exists "Service role manages claims" on user_level_reward_claims;
 create policy "Service role manages claims"
   on user_level_reward_claims for all using (auth.role() = 'service_role');
+
+-- ---- 1d-policy. Now that user_level_reward_claims exists, attach the
+--                 forward-referencing policy on relationship_level_rewards.
+drop policy if exists "Users can view rewards they have claimed" on relationship_level_rewards;
+create policy "Users can view rewards they have claimed"
+  on relationship_level_rewards for select using (
+    is_active = true and exists (
+      select 1 from user_level_reward_claims c
+      where c.reward_id = relationship_level_rewards.id
+        and c.user_id = auth.uid()
+    )
+  );
 
 -- ---- 1e. relationship_xp_events (analytics / debug) --------------------------
 create table if not exists relationship_xp_events (

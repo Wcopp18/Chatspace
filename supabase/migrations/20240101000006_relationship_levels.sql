@@ -50,14 +50,9 @@ create table if not exists relationship_level_rewards (
 create index if not exists idx_relationship_level_rewards_level on relationship_level_rewards(level_id, sort_order);
 
 alter table relationship_level_rewards enable row level security;
-create policy "Users can view rewards they have claimed"
-  on relationship_level_rewards for select using (
-    is_active = true and exists (
-      select 1 from user_level_reward_claims c
-      where c.reward_id = relationship_level_rewards.id
-        and c.user_id = auth.uid()
-    )
-  );
+-- NB: the "Users can view rewards they have claimed" policy references
+-- user_level_reward_claims, which Postgres resolves at CREATE POLICY time.
+-- That policy is defined further down, after user_level_reward_claims exists.
 create policy "Service role manages level rewards"
   on relationship_level_rewards for all using (auth.role() = 'service_role');
 
@@ -110,6 +105,16 @@ create policy "Users can update own claims"
   on user_level_reward_claims for update using (auth.uid() = user_id);
 create policy "Service role manages claims"
   on user_level_reward_claims for all using (auth.role() = 'service_role');
+
+-- Attach the forward-referencing policy now that the referenced table exists.
+create policy "Users can view rewards they have claimed"
+  on relationship_level_rewards for select using (
+    is_active = true and exists (
+      select 1 from user_level_reward_claims c
+      where c.reward_id = relationship_level_rewards.id
+        and c.user_id = auth.uid()
+    )
+  );
 
 -- ------------------------------------------------------------
 -- 5) RELATIONSHIP XP EVENTS (for debugging/analytics, optional)
