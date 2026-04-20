@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__supabase__*",
+
+      "Read",
+      "Glob",
+      "Grep",
+
+      "Edit(app/**)",
+      "Edit(components/**)",
+      "Edit(lib/**)",
+      "Edit(scripts/**)",
+      "Edit(supabase/**)",
+      "Edit(types/**)",
+      "Edit(.claude/**)",
+      "Write(app/**)",
+      "Write(components/**)",
+      "Write(lib/**)",
+      "Write(scripts/**)",
+      "Write(supabase/**)",
+      "Write(types/**)",
+      "Write(.claude/**)",
+
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git log)",
+      "Bash(git show *)",
+      "Bash(git branch)",
+      "Bash(git branch *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git stash)",
+      "Bash(git stash *)",
+      "Bash(git remote -v)",
+      "Bash(git config --get *)",
+
+      "Bash(ls)",
+      "Bash(ls *)",
+      "Bash(pwd)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(which *)",
+      "Bash(file *)",
+      "Bash(echo *)",
+
+      "Bash(npm install)",
+      "Bash(npm install *)",
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(npm run lint)",
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(npx tsx scripts/*)",
+      "Bash(npx tsx ./scripts/*)",
+
+      "Bash(npx vercel *)",
+      "Bash(vercel *)",
+
+      "Bash(mkdir *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(chmod 777 *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -fd*)",
+      "Bash(npm publish *)",
+      "Bash(npx supabase db reset*)",
+      "Edit(/etc/*)",
+      "Edit(~/.*)",
+      "Write(/etc/*)",
+      "Write(~/.*)"
+    ],
+    "ask": [
+      "Bash(drop *)",
+      "Bash(DROP *)"
+    ]
+  }
+}

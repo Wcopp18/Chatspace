@@ -14,6 +14,19 @@ import {
   extractMemories,
   saveMemories,
   selectCallback,
+  calculateXpForMessage,
+  awardRelationshipXp,
+  getRelationshipSnapshot,
+  getOrGenerateDailyVibe,
+  getChemistrySnapshot,
+  computeHiddenProgress,
+  loadGesturesForPersona,
+  loadCooldownMap,
+  evaluateGesture,
+  recordDelivery,
+  scoreMessage,
+  buildBehaviorBrief,
+  evaluateAntiGaming,
 } from "@/lib/engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
@@ -120,6 +133,58 @@ export async function POST(request: NextRequest) {
 
     const currentMessageCount = conversation?.message_count || 0;
 
+    // ── STEP 0b: Build the behavior brief (stage + vibe + chemistry) ──
+    let behaviorBrief = "";
+    try {
+      const snapshotForBrief = await getRelationshipSnapshot(supabase, user.id, persona.id).catch(() => null);
+      const relationshipLevel = snapshotForBrief?.currentLevelNumber || 1;
+      const { data: progressRow } = await supabase
+        .from("user_relationship_progress")
+        .select("last_message_at")
+        .eq("user_id", user.id)
+        .eq("persona_id", persona.id)
+        .single();
+      const lastMessageAt = progressRow?.last_message_at || null;
+      const vibe = await getOrGenerateDailyVibe(supabase, user.id, persona.id, {
+        relationshipLevel,
+        lastMessageAt,
+      });
+      const chem = await getChemistrySnapshot(supabase, user.id, persona.id, convId);
+
+      // Total levels — fetch count of active levels for this persona.
+      const { data: levels } = await supabase
+        .from("relationship_levels")
+        .select("id", { count: "exact" })
+        .eq("persona_id", persona.id)
+        .eq("is_active", true);
+      const totalLevels = levels?.length || 6;
+
+      const daysSinceLastTalk = lastMessageAt
+        ? Math.floor((Date.now() - new Date(lastMessageAt).getTime()) / 86400000)
+        : 0;
+      const { data: recentGesture } = await supabase
+        .from("user_surprise_gesture_deliveries")
+        .select("delivered_at")
+        .eq("user_id", user.id)
+        .eq("persona_id", persona.id)
+        .order("delivered_at", { ascending: false })
+        .limit(1)
+        .single();
+      const recentlyDelivered = recentGesture?.delivered_at
+        ? (Date.now() - new Date(recentGesture.delivered_at).getTime()) < 5 * 60_000
+        : false;
+
+      behaviorBrief = buildBehaviorBrief({
+        relationshipLevelNumber: relationshipLevel,
+        totalLevels,
+        vibe: vibe.vibe,
+        vibeIntensity: Number(vibe.intensity),
+        chemistryBand: chem.band,
+        recentlyDelivered,
+        longAbsence: daysSinceLastTalk >= 2,
+      });
+    } catch (e) { console.error("Behavior brief error:", e); }
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -153,8 +218,9 @@ export async function POST(request: NextRequest) {
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
       } else {
-        // Claude fallback with optional memory callback
+        // Claude fallback with optional memory callback + behavior brief
         let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+        if (behaviorBrief) fullPrompt += `\n\n${behaviorBrief}`;
         try {
           const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
           if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
@@ -168,7 +234,8 @@ export async function POST(request: NextRequest) {
       logRoutingDecision(supabase, convId, message, routingDecision, currentTensionScore, aiResponse).catch(console.error);
     } catch (routingError) {
       console.error("Routing engine error, falling back to Claude:", routingError);
-      const systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      let systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
+      if (behaviorBrief) systemPrompt += `\n\n${behaviorBrief}`;
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
@@ -193,6 +260,82 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) { console.error("Tension update error:", e); }
 
+    // ── STEP 4a: Anti-gaming evaluation (runs before XP & gestures) ──
+    const recentUserMessagesFull = (messageHistory || [])
+      .filter(m => m.role === "user")
+      .slice(-15)
+      .reverse()
+      .map(m => ({ content: m.content, createdAt: m.created_at }));
+    const preQuality = scoreMessage(message, recentUserMessagesFull.map(r => r.content));
+    // Last reward or gesture time (max of tension reward and surprise gesture).
+    let lastRewardMs: number | null = null;
+    try {
+      const { data: tState } = await supabase
+        .from("tension_state").select("last_reward_at")
+        .eq("user_id", user.id).eq("persona_id", persona.id).single();
+      const { data: lastGesture } = await supabase
+        .from("user_surprise_gesture_deliveries").select("delivered_at")
+        .eq("user_id", user.id).eq("persona_id", persona.id)
+        .order("delivered_at", { ascending: false }).limit(1).single();
+      const tMs = tState?.last_reward_at ? Date.now() - new Date(tState.last_reward_at).getTime() : null;
+      const gMs = lastGesture?.delivered_at ? Date.now() - new Date(lastGesture.delivered_at).getTime() : null;
+      lastRewardMs = tMs === null ? gMs : gMs === null ? tMs : Math.min(tMs, gMs);
+    } catch { /* new user — safe to ignore */ }
+
+    const antiGaming = evaluateAntiGaming({
+      currentMessage: message,
+      recentUserMessages: recentUserMessagesFull,
+      quality: preQuality,
+      millisSinceLastReward: lastRewardMs,
+    });
+
+    // ── STEP 4b: Award long-term relationship XP (safe) ──
+    let relationship: {
+      snapshot: Awaited<ReturnType<typeof getRelationshipSnapshot>> | null;
+      leveledUp: boolean;
+      levelUps: Array<{ fromLevel: number; toLevel: number; levelName: string }>;
+      rewardsDelivered: Array<{
+        id: string;
+        media_type: "image" | "video";
+        media_url: string;
+        thumbnail_url: string | null;
+        caption: string | null;
+        level_id: string;
+        level_name: string;
+        level_number: number;
+      }>;
+      xpAwarded: number;
+    } = { snapshot: null, leveledUp: false, levelUps: [], rewardsDelivered: [], xpAwarded: 0 };
+    try {
+      const xpAnalysis = analyzeMessage(message);
+      const xpCalc = calculateXpForMessage({
+        ...xpAnalysis,
+        responseSpeedSeconds: 0,
+        justUnlockedReward: false,
+      });
+      const effectiveXp = Math.round(xpCalc.xp * antiGaming.xpMultiplier);
+      if (effectiveXp > 0) {
+        const result = await awardRelationshipXp(supabase, user.id, persona.id, effectiveXp, `${xpCalc.reason}${antiGaming.reasons.length ? "|ag:" + antiGaming.reasons.join(",") : ""}`);
+        relationship.leveledUp = result.leveledUp;
+        relationship.levelUps = result.levelUpSummaries;
+        relationship.rewardsDelivered = result.rewardsDelivered;
+        relationship.xpAwarded = result.xpAwarded;
+      }
+      relationship.snapshot = await getRelationshipSnapshot(supabase, user.id, persona.id);
+
+      // Convert stored media paths to signed URLs for delivered rewards.
+      if (relationship.rewardsDelivered.length > 0) {
+        for (const r of relationship.rewardsDelivered) {
+          if (r.media_url && !r.media_url.startsWith("http")) {
+            const { data: signed } = await supabase.storage
+              .from("level-rewards")
+              .createSignedUrl(r.media_url, 60 * 60 * 24 * 7);
+            if (signed?.signedUrl) r.media_url = signed.signedUrl;
+          }
+        }
+      }
+    } catch (e) { console.error("Relationship XP error:", e); }
+
     // ── STEP 5: Check for premium moment injection (safe) ──
     let injectedMoment = null;
     try {
@@ -211,6 +354,73 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (e) { console.error("Moment injection error:", e); }
+
+    // ── STEP 5a: Surprise gesture evaluation (free, spontaneous, safe) ──
+    let surpriseGesture: {
+      id: string;
+      gesture_type: string;
+      content_text: string | null;
+      media_url: string | null;
+      thumbnail_url: string | null;
+      caption: string | null;
+    } | null = null;
+    try {
+      // Anti-gaming gate + quality gate.
+      const quality = preQuality;
+      if (antiGaming.gestureAllowed && quality.category !== "low") {
+        const gestures = await loadGesturesForPersona(supabase, persona.id);
+        if (gestures.length > 0) {
+          const hidden = await computeHiddenProgress(supabase, user.id, persona.id);
+          const chem = await getChemistrySnapshot(supabase, user.id, persona.id, convId);
+          const vibeRow = await supabase
+            .from("persona_daily_vibes")
+            .select("vibe")
+            .eq("user_id", user.id)
+            .eq("persona_id", persona.id)
+            .eq("vibe_date", new Date().toISOString().slice(0, 10))
+            .single();
+          const todayVibe = (vibeRow.data?.vibe as string) || "playful";
+          const cooldownMap = await loadCooldownMap(supabase, user.id, persona.id, gestures.map(g => g.id));
+          const decision = evaluateGesture(
+            gestures,
+            {
+              hiddenProgressBoost: hidden.boost,
+              chemistryBand: chem.band,
+              chemistryMultiplier: chem.surpriseMultiplier,
+              relationshipLevel: hidden.relationshipLevel,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              vibe: todayVibe as any,
+              qualityCategory: quality.category,
+            },
+            cooldownMap,
+          );
+          if (decision.shouldDeliver && decision.selectedGesture) {
+            const g = decision.selectedGesture;
+            let mediaUrl = g.media_url;
+            if (mediaUrl && !mediaUrl.startsWith("http")) {
+              const { data: signed } = await supabase.storage
+                .from("level-rewards")
+                .createSignedUrl(mediaUrl, 60 * 60 * 24 * 7);
+              if (signed?.signedUrl) mediaUrl = signed.signedUrl;
+            }
+            surpriseGesture = {
+              id: g.id,
+              gesture_type: g.gesture_type,
+              content_text: g.content_text,
+              media_url: mediaUrl,
+              thumbnail_url: g.thumbnail_url,
+              caption: g.caption,
+            };
+            await recordDelivery(supabase, user.id, persona.id, g.id, {
+              chemistryBand: chem.band,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              vibe: todayVibe as any,
+              boost: hidden.boost,
+            });
+          }
+        }
+      }
+    } catch (e) { console.error("Gesture eval error:", e); }
 
     // ── STEP 5b: Detect custom request intent ──
     const customRequestPatterns = [
@@ -265,6 +475,8 @@ export async function POST(request: NextRequest) {
         phrase: tensionResult.phrase,
       },
       injectedMoment,
+      relationship,
+      surpriseGesture,
       showCustomRequestCard,
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id, line: continuationPrompt.continuation_line,

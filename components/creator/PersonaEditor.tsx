@@ -112,12 +112,17 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
           </button>
           <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); }} />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-white font-bold text-lg">{persona.display_name}</p>
           <p className="text-white/40 text-sm">@{persona.slug}</p>
-          <button onClick={() => router.push(`/chat/${persona.slug}`)} className="text-xs text-[#FF3CAC] hover:underline mt-1">
-            Preview as user →
-          </button>
+          <div className="flex items-center gap-3 mt-1">
+            <button onClick={() => router.push(`/chat/${persona.slug}`)} className="text-xs text-[#FF3CAC] hover:underline">
+              Preview as user →
+            </button>
+            <button onClick={() => router.push(`/creator/${persona.slug}/levels`)} className="text-xs text-[#8B5CF6] hover:underline">
+              Relationship levels & rewards →
+            </button>
+          </div>
         </div>
       </div>
 

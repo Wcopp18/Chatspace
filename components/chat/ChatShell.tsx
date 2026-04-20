@@ -8,6 +8,9 @@ import MessageList from "./MessageList";
 import ChatInput from "./ChatInput";
 import TensionMeter from "./TensionMeter";
 import TensionExplainer from "./TensionExplainer";
+import RelationshipMeter, { type RelationshipSnapshot } from "./RelationshipMeter";
+import LevelRewardModal, { type DeliveredReward } from "./LevelRewardModal";
+import SurpriseGestureToast, { type SurpriseGesturePayload } from "./SurpriseGestureToast";
 import MediaShelf from "./MediaShelf";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
@@ -58,6 +61,7 @@ interface Props {
   initialMessages: DBMessage[];
   initialConversationId: string | null;
   moments: Moment[];
+  initialRelationship?: RelationshipSnapshot | null;
 }
 
 export default function ChatShell({
@@ -66,6 +70,7 @@ export default function ChatShell({
   initialMessages,
   initialConversationId,
   moments: initialMoments,
+  initialRelationship = null,
 }: Props) {
   const router = useRouter();
 
@@ -98,6 +103,11 @@ export default function ChatShell({
   const [showTensionExplainer, setShowTensionExplainer] = useState(false);
   const [tensionExplainerShown, setTensionExplainerShown] = useState(false);
   const [showCustomRequest, setShowCustomRequest] = useState(false);
+  const [relationship, setRelationship] = useState<RelationshipSnapshot | null>(initialRelationship);
+  const [levelUps, setLevelUps] = useState<Array<{ fromLevel: number; toLevel: number; levelName: string }>>([]);
+  const [lastXpAwarded, setLastXpAwarded] = useState(0);
+  const [pendingRewards, setPendingRewards] = useState<DeliveredReward[]>([]);
+  const [surpriseGesture, setSurpriseGesture] = useState<SurpriseGesturePayload | null>(null);
 
   // Send intro message on first load if no history
   useEffect(() => {
@@ -172,6 +182,21 @@ export default function ChatShell({
           injectedMoment: data.injectedMoment || undefined,
         };
         setMessages((prev) => [...prev, aiMsg]);
+
+        // Update relationship meter
+        if (data.relationship) {
+          if (data.relationship.snapshot) setRelationship(data.relationship.snapshot);
+          setLastXpAwarded(data.relationship.xpAwarded || 0);
+          setLevelUps(data.relationship.levelUps || []);
+          if (data.relationship.rewardsDelivered?.length > 0) {
+            setPendingRewards(data.relationship.rewardsDelivered);
+          }
+        }
+
+        // Surprise gesture (free spontaneous gift)
+        if (data.surpriseGesture) {
+          setSurpriseGesture(data.surpriseGesture);
+        }
 
         // Update tension meter
         if (data.tension) {
@@ -310,7 +335,15 @@ export default function ChatShell({
         onBack={() => router.push("/")}
       />
 
-      {/* Tension Meter */}
+      {/* Relationship Meter (long-term) */}
+      <RelationshipMeter
+        snapshot={relationship}
+        xpAwarded={lastXpAwarded}
+        levelUps={levelUps}
+        personaName={persona.display_name}
+      />
+
+      {/* Tension Meter (session chemistry — will be hidden in a later system) */}
       <TensionMeter tension={tension} personaName={persona.display_name} />
 
       {/* Media Shelf — always visible */}
@@ -378,6 +411,22 @@ export default function ChatShell({
           />
         )}
       </AnimatePresence>
+
+      {/* Level-up reward modal */}
+      {pendingRewards.length > 0 && (
+        <LevelRewardModal
+          rewards={pendingRewards}
+          personaName={persona.display_name}
+          onDismiss={() => setPendingRewards([])}
+        />
+      )}
+
+      {/* Surprise gesture toast (free, spontaneous) */}
+      <SurpriseGestureToast
+        gesture={surpriseGesture}
+        personaName={persona.display_name}
+        onDismiss={() => setSurpriseGesture(null)}
+      />
     </div>
   );
 }
