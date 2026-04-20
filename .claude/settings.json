@@ -64,6 +64,9 @@
       "Bash(npx tsx scripts/*)",
       "Bash(npx tsx ./scripts/*)",
 
+      "Bash(npx vercel *)",
+      "Bash(vercel *)",
+
       "Bash(mkdir *)"
     ],
     "deny": [
