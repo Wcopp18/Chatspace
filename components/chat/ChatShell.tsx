@@ -317,7 +317,7 @@ export default function ChatShell({
     <div
       className="flex flex-col h-[100dvh] overflow-hidden relative"
       style={{
-        background: "radial-gradient(ellipse 140% 80% at 50% 0%, #3d1566 0%, #2a0d4a 25%, #1a0832 55%, #0f0420 100%)",
+        background: "linear-gradient(135deg, #3d1566 0%, #2e1a6b 30%, #2746a3 70%, #3b6fd9 100%)",
       }}
     >
       {/* Ambient glow layers */}
