@@ -152,7 +152,8 @@ function ImageTabBar({
   const BAR_HEIGHT = 80;
   const SRC_PILL_Y_PCT = 11;
   const SRC_PILL_H_PCT = 22;
-  const SRC_ASPECT_HW = 481 / 210; // image natural aspect (height / width)
+  // Actual file dimensions: 853 × 1844
+  const SRC_ASPECT_HW = 1844 / 853; // ≈ 2.162
 
   // Scale image so that SRC_PILL_H_PCT % of source height = BAR_HEIGHT.
   const scaledImgH = (BAR_HEIGHT * 100) / SRC_PILL_H_PCT;
@@ -168,7 +169,8 @@ function ImageTabBar({
           width: `${scaledImgW}px`,
         }}
       >
-        {/* Cropped tab strip */}
+        {/* Cropped tab strip. maxWidth/maxHeight:none override Tailwind
+            preflight which would otherwise cap the img to container size. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/Moments-cards2.png"
@@ -179,6 +181,8 @@ function ImageTabBar({
             position: "absolute",
             height: `${scaledImgH}px`,
             width: `${scaledImgW}px`,
+            maxWidth: "none",
+            maxHeight: "none",
             left: 0,
             top: `${imgTopOffset}px`,
             pointerEvents: "none",

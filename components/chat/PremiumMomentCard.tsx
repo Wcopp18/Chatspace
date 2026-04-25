@@ -35,10 +35,13 @@ export default function PremiumMomentCard({
   busy,
   compact = false,
 }: Props) {
-  // Card display dimensions. Aspect ratio matches one card region in
-  // moment-cards.png (~1 : 1.18).
+  // Card display dimensions. The source card region is roughly square
+  // (49% wide × 36% tall of a 1086×1448 image → 532 × 521 pixels).
   const width = compact ? 260 : 300;
-  const height = Math.round(width * 1.18);
+  // Container height is computed from the source card aspect:
+  // height = width × (cardH_pct × srcH) / (cardW_pct × srcW)
+  // For 49%×36% of 1086×1448 → ratio ≈ 0.98 (basically square).
+  const height = Math.round(width * 0.98);
 
   // ── source image cropping ──
   // moment-cards.png contains 4 cards in a 2x2 grid plus headers + footer.
@@ -66,8 +69,8 @@ export default function PremiumMomentCard({
   // width, then offset left by `SRC_CARD_X_PCT%` of the displayed image.
   const imgScale = 100 / SRC_CARD_W_PCT; // ≈ 2.13×
   const imgWidth = Math.round(width * imgScale);
-  // Source aspect 448:615 ≈ 1 : 1.373 — used to compute displayed height:
-  const SRC_ASPECT_HW = 1.373;
+  // Source aspect: actual 1086 × 1448 → height/width = 1.333
+  const SRC_ASPECT_HW = 1448 / 1086;
   const imgHeight = Math.round(imgWidth * SRC_ASPECT_HW);
 
   const imgLeft = -Math.round((SRC_CARD_X_PCT / 100) * imgWidth);
@@ -78,7 +81,9 @@ export default function PremiumMomentCard({
       className="relative overflow-hidden"
       style={{ width: `${width}px`, height: `${height}px` }}
     >
-      {/* The premium card visual (cropped from moment-cards.png) */}
+      {/* The premium card visual (cropped from moment-cards.png).
+          maxWidth:none/maxHeight:none override Tailwind preflight,
+          which would otherwise cap us to the container size. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/moment-cards.png"
@@ -88,6 +93,8 @@ export default function PremiumMomentCard({
           position: "absolute",
           width: `${imgWidth}px`,
           height: `${imgHeight}px`,
+          maxWidth: "none",
+          maxHeight: "none",
           left: `${imgLeft}px`,
           top: `${imgTop}px`,
           pointerEvents: "none",
