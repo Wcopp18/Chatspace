@@ -25,8 +25,8 @@ export default function MessageBubble({ message, persona, showAvatar }: Props) {
           <div
             className="px-5 py-3 rounded-[24px] text-white text-[14.5px] leading-[22px]"
             style={{
-              background: "linear-gradient(167.806deg, rgb(152, 16, 250) 0%, rgb(21, 93, 252) 100%)",
-              boxShadow: "0 4px 20px rgba(139, 92, 246, 0.25)",
+              background: "linear-gradient(167.806deg, #9810fa 0%, #155dfc 100%)",
+              boxShadow: "0 4px 24px rgba(152, 16, 250, 0.55), 0 0 1px rgba(255,255,255,0.1) inset",
               borderBottomRightRadius: "8px",
             }}
           >
