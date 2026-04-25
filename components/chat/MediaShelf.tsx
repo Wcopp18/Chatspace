@@ -39,12 +39,12 @@ export default function MediaShelf({ items, onUnlock }: Props) {
           onClick={() => setActiveTab("photos")}
           className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             activeTab === "photos"
-              ? "text-white shadow-lg shadow-purple-500/30"
+              ? "text-white shadow-lg shadow-pink-500/30"
               : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
           }`}
           style={
             activeTab === "photos"
-              ? { background: "linear-gradient(135deg, #8B5CF6, #A855F7)" }
+              ? { background: "linear-gradient(135deg, #EC4899, #D946EF)" }
               : undefined
           }
         >
@@ -64,12 +64,12 @@ export default function MediaShelf({ items, onUnlock }: Props) {
           onClick={() => setActiveTab("videos")}
           className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             activeTab === "videos"
-              ? "text-white shadow-lg shadow-purple-500/30"
+              ? "text-white shadow-lg shadow-pink-500/30"
               : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
           }`}
           style={
             activeTab === "videos"
-              ? { background: "linear-gradient(135deg, #8B5CF6, #A855F7)" }
+              ? { background: "linear-gradient(135deg, #EC4899, #D946EF)" }
               : undefined
           }
         >
@@ -140,9 +140,9 @@ export default function MediaShelf({ items, onUnlock }: Props) {
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                     {/* Lock icon circle */}
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40"
+                      className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-pink-500/40"
                       style={{
-                        background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
+                        background: "linear-gradient(135deg, #EC4899, #D946EF)",
                       }}
                     >
                       <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -153,9 +153,9 @@ export default function MediaShelf({ items, onUnlock }: Props) {
 
                     {/* Price badge */}
                     <div
-                      className="px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-lg shadow-purple-500/40"
+                      className="px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-lg shadow-pink-500/40"
                       style={{
-                        background: "linear-gradient(135deg, #8B5CF6, #A855F7)",
+                        background: "linear-gradient(135deg, #EC4899, #D946EF)",
                       }}
                     >
                       ${item.price.toFixed(2)}

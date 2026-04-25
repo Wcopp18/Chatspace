@@ -25,8 +25,8 @@ export default function MessageBubble({ message, persona, showAvatar }: Props) {
           <div
             className="px-4 py-2.5 rounded-2xl rounded-br-md text-white text-[15px] leading-relaxed shadow-lg"
             style={{
-              background: "linear-gradient(135deg, #A855F7 0%, #C084FC 50%, #E879F9 100%)",
-              boxShadow: "0 4px 24px rgba(192, 132, 252, 0.4)",
+              background: "linear-gradient(135deg, #4F46E5 0%, #6D5BD9 50%, #8B5CF6 100%)",
+              boxShadow: "0 4px 24px rgba(124, 91, 246, 0.4)",
             }}
           >
             {message.content}
@@ -45,9 +45,9 @@ export default function MessageBubble({ message, persona, showAvatar }: Props) {
         <div
           className="px-4 py-2.5 rounded-2xl rounded-bl-md text-white text-[15px] leading-relaxed backdrop-blur-md"
           style={{
-            background: "linear-gradient(135deg, rgba(75, 55, 115, 0.7) 0%, rgba(55, 40, 90, 0.7) 100%)",
-            border: "1px solid rgba(168, 85, 247, 0.2)",
-            boxShadow: "0 2px 12px rgba(0, 0, 0, 0.2)",
+            background: "linear-gradient(135deg, rgba(38, 28, 55, 0.85) 0%, rgba(28, 20, 42, 0.85) 100%)",
+            border: "1px solid rgba(168, 85, 247, 0.18)",
+            boxShadow: "0 2px 12px rgba(0, 0, 0, 0.35)",
           }}
         >
           {message.content}

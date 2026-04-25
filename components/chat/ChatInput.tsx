@@ -57,9 +57,9 @@ export default function ChatInput({ onSend, disabled }: Props) {
             />
             <defs>
               <linearGradient id="sparkleGrad" x1="3" y1="2" x2="21" y2="22">
-                <stop stopColor="#FF3CAC" />
+                <stop stopColor="#A855F7" />
                 <stop offset="0.5" stopColor="#C084FC" />
-                <stop offset="1" stopColor="#8B5CF6" />
+                <stop offset="1" stopColor="#D946EF" />
               </linearGradient>
             </defs>
           </svg>
@@ -104,8 +104,8 @@ export default function ChatInput({ onSend, disabled }: Props) {
           disabled={disabled || !text.trim()}
           className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
-            background: "linear-gradient(135deg, #FF3CAC 0%, #D946EF 100%)",
-            boxShadow: "0 4px 20px rgba(255, 60, 172, 0.4)",
+            background: "linear-gradient(135deg, #EC4899 0%, #D946EF 100%)",
+            boxShadow: "0 4px 20px rgba(217, 70, 239, 0.45)",
           }}
           aria-label="Send"
         >
