@@ -149,55 +149,52 @@ function ImageTabBar({
   activeTab: "photos" | "videos";
   onSelect: (tab: "photos" | "videos") => void;
 }) {
-  const BAR_HEIGHT = 80;
-  const SRC_PILL_Y_PCT = 11;
-  const SRC_PILL_H_PCT = 22;
-  // Actual file dimensions: 853 × 1844
-  const SRC_ASPECT_HW = 1844 / 853; // ≈ 2.162
+  // ── Source image (measured): 853 × 1844 ──
+  const SRC_W = 853;
+  const SRC_H = 1844;
 
-  // Scale image so that SRC_PILL_H_PCT % of source height = BAR_HEIGHT.
-  const scaledImgH = (BAR_HEIGHT * 100) / SRC_PILL_H_PCT;
-  const scaledImgW = scaledImgH / SRC_ASPECT_HW;
-  const imgTopOffset = -(SRC_PILL_Y_PCT / 100) * scaledImgH;
+  // ── Pill strip region (calibrated) ──
+  // Adjust these pixel coords if the strip looks off.
+  const PILL_LEFT_PX = 50;
+  const PILL_RIGHT_PX = 803;
+  const PILL_TOP_PX = 220;
+  const PILL_BOTTOM_PX = 460;
+
+  const stripW = PILL_RIGHT_PX - PILL_LEFT_PX;
+  const stripH = PILL_BOTTOM_PX - PILL_TOP_PX;
+
+  // Display bar — natural aspect of the strip
+  const BAR_HEIGHT = 80;
+  const barWidth = Math.round(BAR_HEIGHT * (stripW / stripH));
+
+  // Background math (same pattern as PremiumMomentCard)
+  const scale = barWidth / stripW;
+  const bgW = Math.round(SRC_W * scale);
+  const bgH = Math.round(SRC_H * scale);
+  const bgX = -Math.round(PILL_LEFT_PX * scale);
+  const bgY = -Math.round(PILL_TOP_PX * scale);
 
   return (
     <div className="flex justify-center pt-3 pb-2">
       <div
-        className="relative overflow-hidden"
+        className="relative"
         style={{
           height: `${BAR_HEIGHT}px`,
-          width: `${scaledImgW}px`,
+          width: `${barWidth}px`,
+          backgroundImage: "url(/Moments-cards2.png)",
+          backgroundSize: `${bgW}px ${bgH}px`,
+          backgroundPosition: `${bgX}px ${bgY}px`,
+          backgroundRepeat: "no-repeat",
         }}
       >
-        {/* Cropped tab strip. maxWidth/maxHeight:none override Tailwind
-            preflight which would otherwise cap the img to container size. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/Moments-cards2.png"
-          alt=""
-          aria-hidden="true"
-          draggable={false}
-          style={{
-            position: "absolute",
-            height: `${scaledImgH}px`,
-            width: `${scaledImgW}px`,
-            maxWidth: "none",
-            maxHeight: "none",
-            left: 0,
-            top: `${imgTopOffset}px`,
-            pointerEvents: "none",
-            userSelect: "none",
-          }}
-        />
-
-        {/* Click target — Photos pill (left half of image) */}
+        {/* Click target — Photos pill (left ~half of strip) */}
         <button
           onClick={() => onSelect("photos")}
           aria-label="Show photos"
           className="absolute z-10 transition-all active:scale-95 rounded-full"
           style={{
-            left: "6%",
-            width: "42%",
+            left: "4%",
+            width: "44%",
             top: "12%",
             height: "76%",
             background: "transparent",
@@ -208,14 +205,14 @@ function ImageTabBar({
           }}
         />
 
-        {/* Click target — Videos pill (right half of image) */}
+        {/* Click target — Videos pill (right ~half of strip) */}
         <button
           onClick={() => onSelect("videos")}
           aria-label="Show videos"
           className="absolute z-10 transition-all active:scale-95 rounded-full"
           style={{
             left: "52%",
-            width: "42%",
+            width: "44%",
             top: "12%",
             height: "76%",
             background: "transparent",

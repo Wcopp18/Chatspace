@@ -16,17 +16,15 @@ interface Props {
 /**
  * Premium "lightning" moment card.
  *
- * Uses the AI-rendered /moment-cards.png as its visual. The image contains
- * 4 cards (gold left, gold right, purple left, purple right) plus headers
- * and a "Go Premium" footer. We crop to one card via positioned <img>
- * inside an overflow-hidden container.
+ * Uses /public/moment-cards.png as the visual (one big PNG with 4 cards).
+ * Crops to a single card via CSS background-image + background-size +
+ * background-position. Bypasses Tailwind's <img> preflight rules, so the
+ * sizing is completely under our control.
  *
- * Photos = gold card (top-left of the source image).
- * Videos = purple card (bottom-left of the source image).
+ * Photos = gold card (top-left of source image).
+ * Videos = purple card (bottom-left of source image).
  *
- * NOTE: title, tease copy, button label, and price are baked into the
- * image (intentional MVP trade-off for visual fidelity). Click targets
- * are overlaid on top of the button region for unlock interactions.
+ * Click targets are layered on top for unlock + (chat-only) dismiss.
  */
 export default function PremiumMomentCard({
   theme,
@@ -35,77 +33,57 @@ export default function PremiumMomentCard({
   busy,
   compact = false,
 }: Props) {
-  // Card display dimensions. The source card region is roughly square
-  // (49% wide × 36% tall of a 1086×1448 image → 532 × 521 pixels).
-  const width = compact ? 260 : 300;
-  // Container height is computed from the source card aspect:
-  // height = width × (cardH_pct × srcH) / (cardW_pct × srcW)
-  // For 49%×36% of 1086×1448 → ratio ≈ 0.98 (basically square).
-  const height = Math.round(width * 0.98);
+  // ── Source image dimensions (measured) ──
+  const SRC_W = 1086;
+  const SRC_H = 1448;
 
-  // ── source image cropping ──
-  // moment-cards.png contains 4 cards in a 2x2 grid plus headers + footer.
-  // These percentages are calibrated by inspection.
-  //
-  // Image regions (approx):
-  //   Top tabs strip:          y 0% – 7%
-  //   "Exclusive Images" hdr:  y 7% – 14%
-  //   Gold cards row:          y 14% – 51%
-  //   "Exclusive Videos" hdr:  y 51% – 58%
-  //   Purple cards row:        y 58% – 92%
-  //   "Go Premium" footer:     y 92% – 100%
-  //
-  // We crop to the LEFT card of the matching row.
-  const SRC_CARD_X_PCT = 1;      // a sliver of left padding
-  const SRC_CARD_W_PCT = 47;     // width of one card (incl lightning bleed)
-  const SRC_GOLD_Y_PCT = 13;
-  const SRC_PURPLE_Y_PCT = 56.5;
-  const SRC_CARD_H_PCT = 38;     // height of one card (incl lightning bleed)
+  // ── Card region within the source image (calibrated by inspection) ──
+  // Pixel coords for the LEFT card on each row.
+  // Adjust these if the crop looks off — they're the only knobs.
+  const CARD_LEFT_PX = 25;       // x of card's left edge (incl. lightning bleed)
+  const CARD_RIGHT_PX = 545;     // x of card's right edge
+  const GOLD_TOP_PX = 200;       // y of gold card's top edge
+  const GOLD_BOTTOM_PX = 730;    // y of gold card's bottom edge
+  const PURPLE_TOP_PX = 870;     // y of purple card's top edge
+  const PURPLE_BOTTOM_PX = 1340; // y of purple card's bottom edge
 
-  const srcYPct = theme === "gold" ? SRC_GOLD_Y_PCT : SRC_PURPLE_Y_PCT;
+  const cardW = CARD_RIGHT_PX - CARD_LEFT_PX;
+  const cardH =
+    theme === "gold"
+      ? GOLD_BOTTOM_PX - GOLD_TOP_PX
+      : PURPLE_BOTTOM_PX - PURPLE_TOP_PX;
+  const cardTop = theme === "gold" ? GOLD_TOP_PX : PURPLE_TOP_PX;
 
-  // To make the source `SRC_CARD_W_PCT%` slice fill our container width,
-  // the displayed <img> must be `(100 / SRC_CARD_W_PCT)` × the container
-  // width, then offset left by `SRC_CARD_X_PCT%` of the displayed image.
-  const imgScale = 100 / SRC_CARD_W_PCT; // ≈ 2.13×
-  const imgWidth = Math.round(width * imgScale);
-  // Source aspect: actual 1086 × 1448 → height/width = 1.333
-  const SRC_ASPECT_HW = 1448 / 1086;
-  const imgHeight = Math.round(imgWidth * SRC_ASPECT_HW);
+  // ── Display container ──
+  // We pick a display width and let height match the card's natural aspect.
+  const displayWidth = compact ? 260 : 300;
+  const displayHeight = Math.round(displayWidth * (cardH / cardW));
 
-  const imgLeft = -Math.round((SRC_CARD_X_PCT / 100) * imgWidth);
-  const imgTop = -Math.round((srcYPct / 100) * imgHeight);
+  // ── Background scaling math ──
+  // We want the source `cardW × cardH` region to fill `displayWidth × displayHeight`.
+  // Scale factor:
+  const scale = displayWidth / cardW;
+  // Scaled full image dimensions:
+  const bgWidth = Math.round(SRC_W * scale);
+  const bgHeight = Math.round(SRC_H * scale);
+  // Background offset: shift image up/left so card-region top-left lands at 0,0.
+  const bgPosX = -Math.round(CARD_LEFT_PX * scale);
+  const bgPosY = -Math.round(cardTop * scale);
 
   return (
     <div
       className="relative overflow-hidden"
-      style={{ width: `${width}px`, height: `${height}px` }}
+      style={{
+        width: `${displayWidth}px`,
+        height: `${displayHeight}px`,
+        backgroundImage: "url(/moment-cards.png)",
+        backgroundSize: `${bgWidth}px ${bgHeight}px`,
+        backgroundPosition: `${bgPosX}px ${bgPosY}px`,
+        backgroundRepeat: "no-repeat",
+      }}
     >
-      {/* The premium card visual (cropped from moment-cards.png).
-          maxWidth:none/maxHeight:none override Tailwind preflight,
-          which would otherwise cap us to the container size. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/moment-cards.png"
-        alt=""
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          width: `${imgWidth}px`,
-          height: `${imgHeight}px`,
-          maxWidth: "none",
-          maxHeight: "none",
-          left: `${imgLeft}px`,
-          top: `${imgTop}px`,
-          pointerEvents: "none",
-          userSelect: "none",
-        }}
-        draggable={false}
-      />
-
       {/* Transparent click target over the unlock button.
-          Approx region within the cropped card:
-            x: ~6% – 94%, y: ~73% – 84% */}
+          Approx region within the cropped card: x 6%-94%, y 73%-84% */}
       {onCtaClick && (
         <button
           onClick={onCtaClick}
