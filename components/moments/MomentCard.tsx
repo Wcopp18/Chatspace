@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import PremiumMomentCard from "@/components/chat/PremiumMomentCard";
-import { PRICING } from "@/lib/constants";
 import type { Database } from "@/types/database";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
@@ -16,15 +15,15 @@ interface Props {
 }
 
 /**
- * In-chat moment offer. Premium lightning look (compact size).
- * - Photos: gold theme
- * - Videos: purple/blue theme
+ * In-chat moment offer. Premium "lightning" image card.
+ * - Photos -> gold theme
+ * - Videos -> purple theme
  *
- * Appears as if the girl sent it. Taps "Reveal Photo" / "Watch Now"
- * to unlock; dismiss button (top-left) saves it to the shelf for later.
+ * Title / tease copy / price / button label are part of the source PNG.
  */
 export default function MomentCard({
   moment,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   persona,
   onDismiss,
   onUnlock,
@@ -33,9 +32,7 @@ export default function MomentCard({
   const [showUnlocked, setShowUnlocked] = useState(moment.unlocked);
 
   const isVideo = moment.media_type === "video";
-  const price = isVideo ? PRICING.VIDEO_UNLOCK : PRICING.IMAGE_UNLOCK;
   const theme = isVideo ? "purple" : "gold";
-  const ctaLabel = isVideo ? "Watch Now" : "Reveal Photo";
 
   async function handleUnlock() {
     setUnlocking(true);
@@ -75,14 +72,6 @@ export default function MomentCard({
       <PremiumMomentCard
         compact
         theme={theme}
-        title={moment.title}
-        teaseCopy={
-          moment.tease_copy ||
-          `${persona.display_name} made this for you`
-        }
-        price={price}
-        thumbnailUrl={moment.thumbnail_url}
-        ctaLabel={ctaLabel}
         onCtaClick={handleUnlock}
         onDismissClick={onDismiss}
         busy={unlocking}

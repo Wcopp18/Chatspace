@@ -23,9 +23,6 @@ export default function MediaShelf({ items, onUnlock }: Props) {
     activeTab === "photos" ? item.mediaType === "photo" : item.mediaType === "video"
   );
 
-  const photoCount = items.filter((i) => i.mediaType === "photo").length;
-  const videoCount = items.filter((i) => i.mediaType === "video").length;
-
   return (
     <div
       className="flex-shrink-0 border-b border-white/5"
@@ -33,38 +30,14 @@ export default function MediaShelf({ items, onUnlock }: Props) {
         background: "linear-gradient(180deg, rgba(139,92,246,0.08) 0%, rgba(13,13,26,0) 100%)",
       }}
     >
-      {/* Tab toggle — centered, themed (gold for Photos, purple for Videos) */}
-      <div className="flex items-center justify-center gap-3 px-4 pt-3 pb-2">
-        <ThemedTab
-          label="Photos"
-          count={photoCount}
-          active={activeTab === "photos"}
-          theme="gold"
-          onClick={() => setActiveTab("photos")}
-          icon={
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="M21 15l-5-5L5 21" />
-            </svg>
-          }
-        />
-        <ThemedTab
-          label="Videos"
-          count={videoCount}
-          active={activeTab === "videos"}
-          theme="purple"
-          onClick={() => setActiveTab("videos")}
-          icon={
-            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path d="M23 7l-7 5 7 5V7z" />
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-            </svg>
-          }
-        />
-      </div>
+      {/* Tab pills — uses Moments-cards2.png as the visual.
+          Two transparent click targets cover the Photos/Videos pill regions. */}
+      <ImageTabBar
+        activeTab={activeTab}
+        onSelect={setActiveTab}
+      />
 
-      {/* Horizontal scroll row */}
+      {/* Horizontal scroll row of unlocked / saved-for-later thumbnails */}
       <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
         {filteredItems.length === 0 ? (
           <div className="flex-shrink-0 w-full flex items-center justify-center py-6 text-white/30 text-xs italic">
@@ -159,78 +132,96 @@ export default function MediaShelf({ items, onUnlock }: Props) {
 }
 
 /**
- * Themed tab pill with constant pulsing illumination so it draws the eye.
- * theme="gold" for Photos, theme="purple" for Videos.
+ * Image-based tab bar — uses /Moments-cards2.png as the visual.
+ *
+ * The source image (~210 × 481) shows two illuminated pills (gold "Photos"
+ * on the left, purple "Videos" on the right) near the top of a tall
+ * purple canvas. We crop to just the pill strip and size the bar to
+ * match the strip's natural aspect, then overlay two transparent
+ * click targets on each pill.
+ *
+ * The non-active pill is dimmed slightly so the active state reads.
  */
-function ThemedTab({
-  label,
-  count,
-  active,
-  theme,
-  onClick,
-  icon,
+function ImageTabBar({
+  activeTab,
+  onSelect,
 }: {
-  label: string;
-  count: number;
-  active: boolean;
-  theme: "gold" | "purple";
-  onClick: () => void;
-  icon: React.ReactNode;
+  activeTab: "photos" | "videos";
+  onSelect: (tab: "photos" | "videos") => void;
 }) {
-  const colors =
-    theme === "gold"
-      ? { primary: "#FFB800", secondary: "#FFD700", glow: "rgba(255, 184, 0, 0.55)" }
-      : { primary: "#9810fa", secondary: "#155dfc", glow: "rgba(152, 16, 250, 0.55)" };
+  const BAR_HEIGHT = 80;
+  const SRC_PILL_Y_PCT = 11;
+  const SRC_PILL_H_PCT = 22;
+  const SRC_ASPECT_HW = 481 / 210; // image natural aspect (height / width)
 
-  // Active pill: full gradient, strong glow, animated pulse.
-  // Inactive pill: still themed with a subtle outline + soft glow so both
-  // tabs always look "illuminated" enough to invite a tap.
+  // Scale image so that SRC_PILL_H_PCT % of source height = BAR_HEIGHT.
+  const scaledImgH = (BAR_HEIGHT * 100) / SRC_PILL_H_PCT;
+  const scaledImgW = scaledImgH / SRC_ASPECT_HW;
+  const imgTopOffset = -(SRC_PILL_Y_PCT / 100) * scaledImgH;
+
   return (
-    <button
-      onClick={onClick}
-      className={`relative px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 ${
-        active ? "animate-premium-pulse" : ""
-      }`}
-      style={
-        active
-          ? {
-              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
-              color: theme === "gold" ? "black" : "white",
-              boxShadow: `0 0 18px ${colors.glow}, 0 0 36px ${colors.glow}, 0 0 0 1px rgba(255,255,255,0.25) inset`,
-            }
-          : {
-              background: "rgba(0, 0, 0, 0.4)",
-              color: "rgba(255,255,255,0.7)",
-              border: `1px solid ${colors.primary}55`,
-              boxShadow: `0 0 12px ${colors.glow}`,
-            }
-      }
-    >
-      {/* Tiny lightning bolt accent — always visible, brighter when active */}
-      <span
-        className="inline-flex"
+    <div className="flex justify-center pt-3 pb-2">
+      <div
+        className="relative overflow-hidden"
         style={{
-          color: active ? (theme === "gold" ? "black" : "white") : colors.secondary,
-          filter: active ? "none" : `drop-shadow(0 0 4px ${colors.glow})`,
+          height: `${BAR_HEIGHT}px`,
+          width: `${scaledImgW}px`,
         }}
       >
-        {icon}
-      </span>
-      {label}
-      {count > 0 && (
-        <span
-          className="text-[10px]"
+        {/* Cropped tab strip */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/Moments-cards2.png"
+          alt=""
+          aria-hidden="true"
+          draggable={false}
           style={{
-            color: active
-              ? theme === "gold"
-                ? "rgba(0,0,0,0.6)"
-                : "rgba(255,255,255,0.7)"
-              : "rgba(255,255,255,0.4)",
+            position: "absolute",
+            height: `${scaledImgH}px`,
+            width: `${scaledImgW}px`,
+            left: 0,
+            top: `${imgTopOffset}px`,
+            pointerEvents: "none",
+            userSelect: "none",
           }}
-        >
-          {count}
-        </span>
-      )}
-    </button>
+        />
+
+        {/* Click target — Photos pill (left half of image) */}
+        <button
+          onClick={() => onSelect("photos")}
+          aria-label="Show photos"
+          className="absolute z-10 transition-all active:scale-95 rounded-full"
+          style={{
+            left: "6%",
+            width: "42%",
+            top: "12%",
+            height: "76%",
+            background: "transparent",
+            boxShadow:
+              activeTab !== "photos"
+                ? "inset 0 0 0 999px rgba(0,0,0,0.45)"
+                : "none",
+          }}
+        />
+
+        {/* Click target — Videos pill (right half of image) */}
+        <button
+          onClick={() => onSelect("videos")}
+          aria-label="Show videos"
+          className="absolute z-10 transition-all active:scale-95 rounded-full"
+          style={{
+            left: "52%",
+            width: "42%",
+            top: "12%",
+            height: "76%",
+            background: "transparent",
+            boxShadow:
+              activeTab !== "videos"
+                ? "inset 0 0 0 999px rgba(0,0,0,0.45)"
+                : "none",
+          }}
+        />
+      </div>
+    </div>
   );
 }
