@@ -33,57 +33,35 @@ export default function MediaShelf({ items, onUnlock }: Props) {
         background: "linear-gradient(180deg, rgba(139,92,246,0.08) 0%, rgba(13,13,26,0) 100%)",
       }}
     >
-      {/* Tab toggle — always visible */}
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-        <button
+      {/* Tab toggle — centered, themed (gold for Photos, purple for Videos) */}
+      <div className="flex items-center justify-center gap-3 px-4 pt-3 pb-2">
+        <ThemedTab
+          label="Photos"
+          count={photoCount}
+          active={activeTab === "photos"}
+          theme="gold"
           onClick={() => setActiveTab("photos")}
-          className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
-            activeTab === "photos"
-              ? "text-white shadow-lg shadow-pink-500/30"
-              : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
-          }`}
-          style={
-            activeTab === "photos"
-              ? { background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)" }
-              : undefined
+          icon={
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
           }
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <path d="M21 15l-5-5L5 21" />
-          </svg>
-          Photos
-          {photoCount > 0 && (
-            <span className={`text-[10px] ${activeTab === "photos" ? "text-white/70" : "text-white/30"}`}>
-              {photoCount}
-            </span>
-          )}
-        </button>
-        <button
+        />
+        <ThemedTab
+          label="Videos"
+          count={videoCount}
+          active={activeTab === "videos"}
+          theme="purple"
           onClick={() => setActiveTab("videos")}
-          className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
-            activeTab === "videos"
-              ? "text-white shadow-lg shadow-pink-500/30"
-              : "text-white/50 hover:text-white/70 bg-white/5 border border-white/10"
-          }`}
-          style={
-            activeTab === "videos"
-              ? { background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)" }
-              : undefined
+          icon={
+            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+            </svg>
           }
-        >
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path d="M23 7l-7 5 7 5V7z" />
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-          </svg>
-          Videos
-          {videoCount > 0 && (
-            <span className={`text-[10px] ${activeTab === "videos" ? "text-white/70" : "text-white/30"}`}>
-              {videoCount}
-            </span>
-          )}
-        </button>
+        />
       </div>
 
       {/* Horizontal scroll row */}
@@ -177,5 +155,82 @@ export default function MediaShelf({ items, onUnlock }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Themed tab pill with constant pulsing illumination so it draws the eye.
+ * theme="gold" for Photos, theme="purple" for Videos.
+ */
+function ThemedTab({
+  label,
+  count,
+  active,
+  theme,
+  onClick,
+  icon,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  theme: "gold" | "purple";
+  onClick: () => void;
+  icon: React.ReactNode;
+}) {
+  const colors =
+    theme === "gold"
+      ? { primary: "#FFB800", secondary: "#FFD700", glow: "rgba(255, 184, 0, 0.55)" }
+      : { primary: "#9810fa", secondary: "#155dfc", glow: "rgba(152, 16, 250, 0.55)" };
+
+  // Active pill: full gradient, strong glow, animated pulse.
+  // Inactive pill: still themed with a subtle outline + soft glow so both
+  // tabs always look "illuminated" enough to invite a tap.
+  return (
+    <button
+      onClick={onClick}
+      className={`relative px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 ${
+        active ? "animate-premium-pulse" : ""
+      }`}
+      style={
+        active
+          ? {
+              background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
+              color: theme === "gold" ? "black" : "white",
+              boxShadow: `0 0 18px ${colors.glow}, 0 0 36px ${colors.glow}, 0 0 0 1px rgba(255,255,255,0.25) inset`,
+            }
+          : {
+              background: "rgba(0, 0, 0, 0.4)",
+              color: "rgba(255,255,255,0.7)",
+              border: `1px solid ${colors.primary}55`,
+              boxShadow: `0 0 12px ${colors.glow}`,
+            }
+      }
+    >
+      {/* Tiny lightning bolt accent — always visible, brighter when active */}
+      <span
+        className="inline-flex"
+        style={{
+          color: active ? (theme === "gold" ? "black" : "white") : colors.secondary,
+          filter: active ? "none" : `drop-shadow(0 0 4px ${colors.glow})`,
+        }}
+      >
+        {icon}
+      </span>
+      {label}
+      {count > 0 && (
+        <span
+          className="text-[10px]"
+          style={{
+            color: active
+              ? theme === "gold"
+                ? "rgba(0,0,0,0.6)"
+                : "rgba(255,255,255,0.7)"
+              : "rgba(255,255,255,0.4)",
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
