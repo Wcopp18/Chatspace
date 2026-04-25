@@ -23,10 +23,11 @@ export default function MessageBubble({ message, persona, showAvatar }: Props) {
       <div className="flex justify-end mb-3">
         <div className="max-w-[75%]">
           <div
-            className="px-4 py-2.5 rounded-2xl rounded-br-md text-white text-[15px] leading-relaxed shadow-lg"
+            className="px-5 py-3 rounded-[24px] text-white text-[14.5px] leading-[22px]"
             style={{
-              background: "linear-gradient(135deg, #4F46E5 0%, #6D5BD9 50%, #8B5CF6 100%)",
-              boxShadow: "0 4px 24px rgba(124, 91, 246, 0.4)",
+              background: "linear-gradient(167.806deg, rgb(152, 16, 250) 0%, rgb(21, 93, 252) 100%)",
+              boxShadow: "0 4px 20px rgba(139, 92, 246, 0.25)",
+              borderBottomRightRadius: "8px",
             }}
           >
             {message.content}
@@ -43,11 +44,10 @@ export default function MessageBubble({ message, persona, showAvatar }: Props) {
     <div className="flex justify-start mb-3">
       <div className="max-w-[75%]">
         <div
-          className="px-4 py-2.5 rounded-2xl rounded-bl-md text-white text-[15px] leading-relaxed backdrop-blur-md"
+          className="px-5 py-3 rounded-[24px] text-white/95 text-[14.5px] leading-[22px] backdrop-blur-md"
           style={{
-            background: "linear-gradient(135deg, rgba(38, 28, 55, 0.85) 0%, rgba(28, 20, 42, 0.85) 100%)",
-            border: "1px solid rgba(168, 85, 247, 0.18)",
-            boxShadow: "0 2px 12px rgba(0, 0, 0, 0.35)",
+            background: "rgba(255, 255, 255, 0.08)",
+            borderBottomLeftRadius: "8px",
           }}
         >
           {message.content}

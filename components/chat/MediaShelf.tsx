@@ -44,7 +44,7 @@ export default function MediaShelf({ items, onUnlock }: Props) {
           }`}
           style={
             activeTab === "photos"
-              ? { background: "linear-gradient(135deg, #EC4899, #D946EF)" }
+              ? { background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)" }
               : undefined
           }
         >
@@ -69,7 +69,7 @@ export default function MediaShelf({ items, onUnlock }: Props) {
           }`}
           style={
             activeTab === "videos"
-              ? { background: "linear-gradient(135deg, #EC4899, #D946EF)" }
+              ? { background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)" }
               : undefined
           }
         >
@@ -142,7 +142,7 @@ export default function MediaShelf({ items, onUnlock }: Props) {
                     <div
                       className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg shadow-pink-500/40"
                       style={{
-                        background: "linear-gradient(135deg, #EC4899, #D946EF)",
+                        background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)",
                       }}
                     >
                       <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -155,7 +155,7 @@ export default function MediaShelf({ items, onUnlock }: Props) {
                     <div
                       className="px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-lg shadow-pink-500/40"
                       style={{
-                        background: "linear-gradient(135deg, #EC4899, #D946EF)",
+                        background: "linear-gradient(135deg, #9810fa 0%, #e60076 100%)",
                       }}
                     >
                       ${item.price.toFixed(2)}

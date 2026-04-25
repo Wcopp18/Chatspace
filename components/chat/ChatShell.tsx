@@ -315,16 +315,37 @@ export default function ChatShell({
 
   return (
     <div
-      className="flex flex-col h-[100dvh] overflow-hidden relative"
-      style={{
-        background: "radial-gradient(ellipse 120% 80% at 50% 0%, #3a1a5c 0%, #25104a 30%, #160828 60%, #0a0418 100%)",
-      }}
+      className="flex flex-col h-[100dvh] overflow-hidden relative bg-black"
     >
-      {/* Ambient glow layers */}
+      {/* Background gradient (matches Figma) */}
       <div
-        className="absolute inset-x-0 top-0 h-64 pointer-events-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse 100% 70% at 50% 0%, rgba(168, 85, 247, 0.25) 0%, rgba(139, 92, 246, 0.1) 40%, transparent 70%)",
+          backgroundImage:
+            "linear-gradient(114.801deg, rgb(0, 0, 0) 0%, rgba(60, 3, 102, 0.8) 50%, rgb(0, 0, 0) 100%)",
+        }}
+      />
+      {/* Blurred ambient orbs (purple top-left, magenta mid-left) */}
+      <div
+        className="absolute pointer-events-none rounded-full"
+        style={{
+          width: "280px",
+          height: "280px",
+          left: "40px",
+          top: "100px",
+          background: "rgba(152, 16, 250, 0.15)",
+          filter: "blur(80px)",
+        }}
+      />
+      <div
+        className="absolute pointer-events-none rounded-full"
+        style={{
+          width: "280px",
+          height: "280px",
+          left: "100px",
+          top: "500px",
+          background: "rgba(230, 0, 118, 0.15)",
+          filter: "blur(80px)",
         }}
       />
       {/* Header */}
