@@ -315,11 +315,11 @@ export default function ChatShell({
 
   return (
     <div
-      className="flex flex-col h-[100dvh] overflow-hidden relative bg-black"
+      className="flex flex-col h-[100dvh] overflow-hidden relative bg-black isolate"
     >
       {/* Background gradient (matches Figma) */}
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="absolute inset-0 pointer-events-none -z-10"
         style={{
           backgroundImage:
             "linear-gradient(114.801deg, rgb(0, 0, 0) 0%, rgba(60, 3, 102, 0.8) 50%, rgb(0, 0, 0) 100%)",
@@ -327,7 +327,7 @@ export default function ChatShell({
       />
       {/* Blurred ambient orbs (purple top-left, magenta mid-left) */}
       <div
-        className="absolute pointer-events-none rounded-full"
+        className="absolute pointer-events-none rounded-full -z-10"
         style={{
           width: "280px",
           height: "280px",
@@ -338,7 +338,7 @@ export default function ChatShell({
         }}
       />
       <div
-        className="absolute pointer-events-none rounded-full"
+        className="absolute pointer-events-none rounded-full -z-10"
         style={{
           width: "280px",
           height: "280px",
