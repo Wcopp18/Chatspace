@@ -377,6 +377,10 @@ export default function ChatShell({
         onBack={() => router.push("/")}
       />
 
+      {/* Media Shelf — Photos/Videos toggle pills sit above the meters
+          so they don't push chat content down when neither is selected. */}
+      <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
+
       {/* Relationship Meter (long-term) */}
       <RelationshipMeter
         snapshot={relationship}
@@ -387,9 +391,6 @@ export default function ChatShell({
 
       {/* Tension Meter (session chemistry — will be hidden in a later system) */}
       <TensionMeter tension={tension} personaName={persona.display_name} />
-
-      {/* Media Shelf — always visible */}
-      <MediaShelf items={mediaShelfItems} onUnlock={unlockMoment} />
 
       {/* Messages */}
       <MessageList
