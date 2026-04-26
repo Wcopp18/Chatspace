@@ -179,6 +179,41 @@
     background-size: 200% 100%;
     animation: shimmerSlide 3s linear infinite;
   }
+
+  /* Pseudo-element shimmer overlay — for use on top of a 3D-shaded
+     base. Apply to a relatively-positioned, overflow-hidden parent.
+     A diagonal white highlight slides across continuously. */
+  .shimmer-overlay {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.55) 50%,
+      transparent 70%
+    );
+    pointer-events: none;
+    transform: translateX(-100%);
+    animation: shimmerOverlayMove 3s linear infinite;
+  }
+  @keyframes shimmerOverlayMove {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Subtle scale pulse — used by Photos/Videos tabs in idle state to "pop" */
+  @keyframes popPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  .animate-pop-pulse {
+    animation: popPulse 2.4s ease-in-out infinite;
+  }
 }
 
 @layer components {

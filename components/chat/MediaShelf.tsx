@@ -17,11 +17,20 @@ interface Props {
 }
 
 export default function MediaShelf({ items, onUnlock }: Props) {
-  const [activeTab, setActiveTab] = useState<"photos" | "videos">("photos");
+  // null = neither tab toggled on (default). Tapping a tab toggles it.
+  const [activeTab, setActiveTab] = useState<"photos" | "videos" | null>(null);
 
-  const filteredItems = items.filter((item) =>
-    activeTab === "photos" ? item.mediaType === "photo" : item.mediaType === "video"
-  );
+  function toggleTab(tab: "photos" | "videos") {
+    setActiveTab((prev) => (prev === tab ? null : tab));
+  }
+
+  const filteredItems = activeTab
+    ? items.filter((item) =>
+        activeTab === "photos"
+          ? item.mediaType === "photo"
+          : item.mediaType === "video"
+      )
+    : [];
 
   return (
     <div
@@ -30,22 +39,19 @@ export default function MediaShelf({ items, onUnlock }: Props) {
         background: "linear-gradient(180deg, rgba(139,92,246,0.08) 0%, rgba(13,13,26,0) 100%)",
       }}
     >
-      {/* Tab pills — uses Moments-cards2.png as the visual.
-          Two transparent click targets cover the Photos/Videos pill regions. */}
-      <ImageTabBar
-        activeTab={activeTab}
-        onSelect={setActiveTab}
-      />
+      {/* Premium tab pills — toggleable; tapping the active tab turns it off */}
+      <ImageTabBar activeTab={activeTab} onToggle={toggleTab} />
 
-      {/* Horizontal scroll row of unlocked / saved-for-later thumbnails */}
-      <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
-        {filteredItems.length === 0 ? (
-          <div className="flex-shrink-0 w-full flex items-center justify-center py-6 text-white/30 text-xs italic">
-            {activeTab === "photos"
-              ? "Keep chatting to unlock her photos..."
-              : "Keep chatting to unlock her videos..."}
-          </div>
-        ) : (
+      {/* Horizontal scroll row — only renders when a tab is selected */}
+      {activeTab && (
+        <div className="flex gap-3 overflow-x-auto px-4 pb-3 no-scrollbar">
+          {filteredItems.length === 0 ? (
+            <div className="flex-shrink-0 w-full flex items-center justify-center py-6 text-white/30 text-xs italic">
+              {activeTab === "photos"
+                ? "Keep chatting to unlock her photos..."
+                : "Keep chatting to unlock her videos..."}
+            </div>
+          ) : (
           filteredItems.map((item) => (
             <button
               key={item.id}
@@ -125,8 +131,9 @@ export default function MediaShelf({ items, onUnlock }: Props) {
               </div>
             </button>
           ))
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -144,39 +151,42 @@ export default function MediaShelf({ items, onUnlock }: Props) {
  */
 function ImageTabBar({
   activeTab,
-  onSelect,
+  onToggle,
 }: {
-  activeTab: "photos" | "videos";
-  onSelect: (tab: "photos" | "videos") => void;
+  activeTab: "photos" | "videos" | null;
+  onToggle: (tab: "photos" | "videos") => void;
 }) {
   return (
-    <div className="flex justify-center gap-3 pt-3 pb-3 px-4">
+    <div className="flex justify-center gap-4 pt-4 pb-4 px-4">
       <PremiumTab
         label="Photos"
         theme="gold"
         active={activeTab === "photos"}
-        onClick={() => onSelect("photos")}
+        onClick={() => onToggle("photos")}
       />
       <PremiumTab
         label="Videos"
         theme="purple"
         active={activeTab === "videos"}
-        onClick={() => onSelect("videos")}
+        onClick={() => onToggle("videos")}
       />
     </div>
   );
 }
 
 /**
- * Tab pill with two states:
+ * 3D-styled tab pill. Three states:
  *
- * IDLE (not selected) — fully illuminated in its theme color, with
- *   a continuously moving metallic shimmer (always polished/shiny),
- *   strong colored glow halo. Loud and inviting.
+ * IDLE (no tab selected, this one not toggled) — fully illuminated in
+ *   its theme color, with a continuous shimmer overlay, a glossy
+ *   "dome" gradient (light top → dark bottom), inset top highlight +
+ *   bottom shadow for depth, outer drop shadow lifting it off the
+ *   page, and a strong colored glow halo. Subtle scale pulse so it
+ *   pops and invites a tap.
  *
- * SELECTED — interior turns WHITE; the border keeps its theme color
- *   and the colored glow stays. This makes the active tab stand out
- *   distinctly against the loud unselected ones.
+ * SELECTED — interior turns WHITE; the border keeps the theme color;
+ *   colored glow halo stays. 3D treatment preserved (top highlight,
+ *   bottom shadow, drop shadow). No shimmer — calm/clean.
  *
  * Gold theme = Photos. Purple theme = Videos.
  */
@@ -194,49 +204,60 @@ function PremiumTab({
   const palette =
     theme === "gold"
       ? {
-          // multi-stop gradient with a bright highlight band that
-          // continuously slides across (animate-shimmer)
-          shimmerBg:
-            "linear-gradient(110deg, #FFB800 0%, #FFD700 35%, #FFFCE0 50%, #FFD700 65%, #FFB800 100%)",
+          // Glossy dome gradient: bright top → mid → darker bottom.
+          // The CSS shimmer overlay slides over this base.
+          domeBg:
+            "linear-gradient(180deg, #FFE066 0%, #FFD700 35%, #FFA500 75%, #CC8800 100%)",
           border: "#FFD700",
-          glow: "rgba(255, 184, 0, 0.7)",
-          glowSoft: "rgba(255, 184, 0, 0.35)",
+          glow: "rgba(255, 184, 0, 0.75)",
+          glowSoft: "rgba(255, 184, 0, 0.4)",
           idleText: "#1a0d00",
           idleIcon: "#1a0d00",
-          activeText: "#7A4A00",  // warm dark gold for readability on white
+          activeText: "#7A4A00",
           activeIcon: "#FFA500",
+          // White on top simulates a gloss highlight
+          activeDomeBg: "linear-gradient(180deg, #ffffff 0%, #f6f6f6 100%)",
         }
       : {
-          shimmerBg:
-            "linear-gradient(110deg, #7C3AED 0%, #A78BFA 30%, #F0E7FF 50%, #A78BFA 70%, #6366F1 100%)",
+          domeBg:
+            "linear-gradient(180deg, #C4B5FD 0%, #A78BFA 30%, #7C3AED 70%, #4C1D95 100%)",
           border: "#A78BFA",
-          glow: "rgba(139, 92, 246, 0.7)",
-          glowSoft: "rgba(139, 92, 246, 0.35)",
+          glow: "rgba(139, 92, 246, 0.75)",
+          glowSoft: "rgba(139, 92, 246, 0.4)",
           idleText: "#ffffff",
           idleIcon: "#ffffff",
-          activeText: "#5B21B6",  // deep purple for readability on white
+          activeText: "#5B21B6",
           activeIcon: "#7C3AED",
+          activeDomeBg: "linear-gradient(180deg, #ffffff 0%, #f6f6f6 100%)",
         };
 
+  // Bigger size for "pop"
   const sharedClasses =
-    "relative flex items-center gap-2 rounded-full font-bold tracking-wide transition-all active:scale-95 px-6 py-2.5 text-sm";
+    "relative flex items-center gap-2 rounded-full font-extrabold tracking-wide transition-transform active:scale-95 px-7 py-3 text-base";
+
+  // 3D inset shadow: top highlight + bottom shadow simulates a domed surface.
+  // Combined with a drop shadow it looks lifted off the page.
+  const insetShadows =
+    "inset 0 1.5px 0 rgba(255,255,255,0.65), inset 0 -2px 4px rgba(0,0,0,0.35)";
 
   if (active) {
-    // ── SELECTED: white interior, colored border, colored glow ──
+    // ── SELECTED: white domed interior, colored border, colored glow ──
     return (
       <button
         onClick={onClick}
-        aria-label={`Show ${label.toLowerCase()}`}
+        aria-label={`Hide ${label.toLowerCase()}`}
         aria-pressed={true}
         className={sharedClasses}
         style={{
-          background: "#ffffff",
+          backgroundImage: palette.activeDomeBg,
           color: palette.activeText,
           border: `2.5px solid ${palette.border}`,
           boxShadow: `
-            0 0 22px ${palette.glow},
-            0 0 44px ${palette.glowSoft},
-            0 4px 14px rgba(0,0,0,0.35)
+            ${insetShadows},
+            0 4px 12px rgba(0,0,0,0.4),
+            0 8px 24px rgba(0,0,0,0.25),
+            0 0 24px ${palette.glow},
+            0 0 48px ${palette.glowSoft}
           `,
         }}
       >
@@ -246,22 +267,23 @@ function PremiumTab({
     );
   }
 
-  // ── IDLE: full color fill, continuous shimmer, strong glow ──
+  // ── IDLE: 3D dome in theme color + continuous shimmer overlay + scale pulse ──
   return (
     <button
       onClick={onClick}
       aria-label={`Show ${label.toLowerCase()}`}
       aria-pressed={false}
-      className={`${sharedClasses} animate-shimmer`}
+      className={`${sharedClasses} shimmer-overlay animate-pop-pulse`}
       style={{
-        backgroundImage: palette.shimmerBg,
+        backgroundImage: palette.domeBg,
         color: palette.idleText,
-        border: `1.5px solid ${palette.border}`,
+        border: `2px solid ${palette.border}`,
         boxShadow: `
-          0 0 0 1.5px rgba(255,255,255,0.35) inset,
-          0 0 22px ${palette.glow},
-          0 0 44px ${palette.glowSoft},
-          0 6px 18px rgba(0,0,0,0.45)
+          ${insetShadows},
+          0 6px 16px rgba(0,0,0,0.55),
+          0 12px 28px rgba(0,0,0,0.3),
+          0 0 24px ${palette.glow},
+          0 0 48px ${palette.glowSoft}
         `,
       }}
     >
