@@ -149,80 +149,123 @@ function ImageTabBar({
   activeTab: "photos" | "videos";
   onSelect: (tab: "photos" | "videos") => void;
 }) {
-  // ── Source image (measured): 853 × 1844 ──
-  const SRC_W = 853;
-  const SRC_H = 1844;
+  return (
+    <div className="flex justify-center gap-3 pt-3 pb-3 px-4">
+      <PremiumTab
+        label="Photos"
+        theme="gold"
+        active={activeTab === "photos"}
+        onClick={() => onSelect("photos")}
+      />
+      <PremiumTab
+        label="Videos"
+        theme="purple"
+        active={activeTab === "videos"}
+        onClick={() => onSelect("videos")}
+      />
+    </div>
+  );
+}
 
-  // ── Pill strip region (calibrated) ──
-  // Adjust these pixel coords if the strip looks off.
-  const PILL_LEFT_PX = 50;
-  const PILL_RIGHT_PX = 803;
-  const PILL_TOP_PX = 220;
-  const PILL_BOTTOM_PX = 460;
-
-  const stripW = PILL_RIGHT_PX - PILL_LEFT_PX;
-  const stripH = PILL_BOTTOM_PX - PILL_TOP_PX;
-
-  // Display bar — natural aspect of the strip
-  const BAR_HEIGHT = 80;
-  const barWidth = Math.round(BAR_HEIGHT * (stripW / stripH));
-
-  // Background math (same pattern as PremiumMomentCard)
-  const scale = barWidth / stripW;
-  const bgW = Math.round(SRC_W * scale);
-  const bgH = Math.round(SRC_H * scale);
-  const bgX = -Math.round(PILL_LEFT_PX * scale);
-  const bgY = -Math.round(PILL_TOP_PX * scale);
+/**
+ * Eye-catching tab pill. Pure CSS — no asset dependencies.
+ *
+ * - Gold theme for Photos, Purple/electric theme for Videos.
+ * - Lightning bolt icon to match the moment-card vibe.
+ * - Glowing border + animated shine sweep + brightness pulse to
+ *   draw the user's attention while they're chatting.
+ * - Inactive state is muted but still themed (so both tabs feel
+ *   "premium" and inviting).
+ */
+function PremiumTab({
+  label,
+  theme,
+  active,
+  onClick,
+}: {
+  label: string;
+  theme: "gold" | "purple";
+  active: boolean;
+  onClick: () => void;
+}) {
+  const palette =
+    theme === "gold"
+      ? {
+          gradient: "linear-gradient(135deg, #FFB800 0%, #FFD700 50%, #FFA500 100%)",
+          glow: "rgba(255, 184, 0, 0.65)",
+          glowSoft: "rgba(255, 184, 0, 0.35)",
+          accent: "#FFD700",
+          textActive: "#1a0d00",
+          textInactive: "#FFD7A8",
+          icon: "#1a0d00",
+          iconInactive: "#FFD700",
+        }
+      : {
+          gradient:
+            "linear-gradient(135deg, #8B5CF6 0%, #A78BFA 35%, #C084FC 70%, #6366F1 100%)",
+          glow: "rgba(139, 92, 246, 0.65)",
+          glowSoft: "rgba(139, 92, 246, 0.35)",
+          accent: "#C084FC",
+          textActive: "#ffffff",
+          textInactive: "#D8B4FE",
+          icon: "#ffffff",
+          iconInactive: "#C084FC",
+        };
 
   return (
-    <div className="flex justify-center pt-3 pb-2">
-      <div
-        className="relative"
+    <button
+      onClick={onClick}
+      aria-label={`Show ${label.toLowerCase()}`}
+      aria-pressed={active}
+      className={`shine-sweep relative flex items-center gap-2 rounded-full font-bold tracking-wide transition-all active:scale-95 ${
+        active ? "px-6 py-3 text-base" : "px-5 py-2.5 text-sm"
+      }`}
+      style={
+        active
+          ? {
+              background: palette.gradient,
+              color: palette.textActive,
+              boxShadow: `
+                0 0 0 1.5px rgba(255,255,255,0.35) inset,
+                0 0 24px ${palette.glow},
+                0 0 48px ${palette.glowSoft},
+                0 6px 18px rgba(0,0,0,0.45)
+              `,
+              animation:
+                "premiumPulse 1.8s ease-in-out infinite alternate",
+            }
+          : {
+              background: "rgba(0, 0, 0, 0.5)",
+              color: palette.textInactive,
+              border: `1.5px solid ${palette.accent}80`,
+              boxShadow: `0 0 14px ${palette.glowSoft}, 0 0 0 1px rgba(255,255,255,0.05) inset`,
+            }
+      }
+    >
+      {/* Lightning bolt icon */}
+      <svg
+        width="14"
+        height="16"
+        viewBox="0 0 14 16"
+        fill="none"
         style={{
-          height: `${BAR_HEIGHT}px`,
-          width: `${barWidth}px`,
-          backgroundImage: "url(/Moments-cards2.png)",
-          backgroundSize: `${bgW}px ${bgH}px`,
-          backgroundPosition: `${bgX}px ${bgY}px`,
-          backgroundRepeat: "no-repeat",
+          color: active ? palette.icon : palette.iconInactive,
+          filter: active
+            ? "drop-shadow(0 0 4px rgba(255,255,255,0.4))"
+            : `drop-shadow(0 0 6px ${palette.glow})`,
+          flexShrink: 0,
         }}
       >
-        {/* Click target — Photos pill (left ~half of strip) */}
-        <button
-          onClick={() => onSelect("photos")}
-          aria-label="Show photos"
-          className="absolute z-10 transition-all active:scale-95 rounded-full"
-          style={{
-            left: "4%",
-            width: "44%",
-            top: "12%",
-            height: "76%",
-            background: "transparent",
-            boxShadow:
-              activeTab !== "photos"
-                ? "inset 0 0 0 999px rgba(0,0,0,0.45)"
-                : "none",
-          }}
+        <path
+          d="M8 0 L1.5 9 L6 9 L4 16 L12.5 6 L7.5 6 Z"
+          fill="currentColor"
+          stroke="currentColor"
+          strokeWidth="0.4"
+          strokeLinejoin="round"
         />
+      </svg>
 
-        {/* Click target — Videos pill (right ~half of strip) */}
-        <button
-          onClick={() => onSelect("videos")}
-          aria-label="Show videos"
-          className="absolute z-10 transition-all active:scale-95 rounded-full"
-          style={{
-            left: "52%",
-            width: "44%",
-            top: "12%",
-            height: "76%",
-            background: "transparent",
-            boxShadow:
-              activeTab !== "videos"
-                ? "inset 0 0 0 999px rgba(0,0,0,0.45)"
-                : "none",
-          }}
-        />
-      </div>
-    </div>
+      <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
+    </button>
   );
 }

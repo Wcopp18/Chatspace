@@ -129,6 +129,44 @@
   .animate-premium-pulse {
     animation: premiumPulse 1.6s ease-in-out infinite alternate;
   }
+
+  /* Shine sweep — sweeps a diagonal highlight across an element.
+     Apply to ::before of a relatively-positioned element with overflow:hidden. */
+  @keyframes shineSweep {
+    0%   { transform: translateX(-150%) skewX(-20deg); opacity: 0; }
+    20%  { opacity: 1; }
+    60%  { opacity: 1; }
+    100% { transform: translateX(250%) skewX(-20deg); opacity: 0; }
+  }
+  .shine-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+  .shine-sweep::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40%;
+    left: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.45) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+    animation: shineSweep 3.5s ease-in-out infinite;
+  }
+
+  /* Slow continuous glow pulse on the box-shadow */
+  @keyframes glowPulse {
+    0%, 100% { filter: drop-shadow(0 0 8px var(--glow-color, rgba(255,255,255,0.4))); }
+    50%      { filter: drop-shadow(0 0 18px var(--glow-color, rgba(255,255,255,0.7))); }
+  }
+  .animate-glow-pulse {
+    animation: glowPulse 2s ease-in-out infinite;
+  }
 }
 
 @layer components {
