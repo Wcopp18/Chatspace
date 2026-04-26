@@ -167,6 +167,18 @@
   .animate-glow-pulse {
     animation: glowPulse 2s ease-in-out infinite;
   }
+
+  /* Continuous metallic shimmer — slides a bright spot through a multi-stop
+     gradient so the button always looks polished and in motion.
+     Set background-size: 200% 100% on the element. */
+  @keyframes shimmerSlide {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .animate-shimmer {
+    background-size: 200% 100%;
+    animation: shimmerSlide 3s linear infinite;
+  }
 }
 
 @layer components {

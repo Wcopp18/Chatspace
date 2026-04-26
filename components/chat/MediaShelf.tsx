@@ -168,14 +168,17 @@ function ImageTabBar({
 }
 
 /**
- * Eye-catching tab pill. Pure CSS — no asset dependencies.
+ * Tab pill with two states:
  *
- * - Gold theme for Photos, Purple/electric theme for Videos.
- * - Lightning bolt icon to match the moment-card vibe.
- * - Glowing border + animated shine sweep + brightness pulse to
- *   draw the user's attention while they're chatting.
- * - Inactive state is muted but still themed (so both tabs feel
- *   "premium" and inviting).
+ * IDLE (not selected) — fully illuminated in its theme color, with
+ *   a continuously moving metallic shimmer (always polished/shiny),
+ *   strong colored glow halo. Loud and inviting.
+ *
+ * SELECTED — interior turns WHITE; the border keeps its theme color
+ *   and the colored glow stays. This makes the active tab stand out
+ *   distinctly against the loud unselected ones.
+ *
+ * Gold theme = Photos. Purple theme = Videos.
  */
 function PremiumTab({
   label,
@@ -191,81 +194,111 @@ function PremiumTab({
   const palette =
     theme === "gold"
       ? {
-          gradient: "linear-gradient(135deg, #FFB800 0%, #FFD700 50%, #FFA500 100%)",
-          glow: "rgba(255, 184, 0, 0.65)",
+          // multi-stop gradient with a bright highlight band that
+          // continuously slides across (animate-shimmer)
+          shimmerBg:
+            "linear-gradient(110deg, #FFB800 0%, #FFD700 35%, #FFFCE0 50%, #FFD700 65%, #FFB800 100%)",
+          border: "#FFD700",
+          glow: "rgba(255, 184, 0, 0.7)",
           glowSoft: "rgba(255, 184, 0, 0.35)",
-          accent: "#FFD700",
-          textActive: "#1a0d00",
-          textInactive: "#FFD7A8",
-          icon: "#1a0d00",
-          iconInactive: "#FFD700",
+          idleText: "#1a0d00",
+          idleIcon: "#1a0d00",
+          activeText: "#7A4A00",  // warm dark gold for readability on white
+          activeIcon: "#FFA500",
         }
       : {
-          gradient:
-            "linear-gradient(135deg, #8B5CF6 0%, #A78BFA 35%, #C084FC 70%, #6366F1 100%)",
-          glow: "rgba(139, 92, 246, 0.65)",
+          shimmerBg:
+            "linear-gradient(110deg, #7C3AED 0%, #A78BFA 30%, #F0E7FF 50%, #A78BFA 70%, #6366F1 100%)",
+          border: "#A78BFA",
+          glow: "rgba(139, 92, 246, 0.7)",
           glowSoft: "rgba(139, 92, 246, 0.35)",
-          accent: "#C084FC",
-          textActive: "#ffffff",
-          textInactive: "#D8B4FE",
-          icon: "#ffffff",
-          iconInactive: "#C084FC",
+          idleText: "#ffffff",
+          idleIcon: "#ffffff",
+          activeText: "#5B21B6",  // deep purple for readability on white
+          activeIcon: "#7C3AED",
         };
 
+  const sharedClasses =
+    "relative flex items-center gap-2 rounded-full font-bold tracking-wide transition-all active:scale-95 px-6 py-2.5 text-sm";
+
+  if (active) {
+    // ── SELECTED: white interior, colored border, colored glow ──
+    return (
+      <button
+        onClick={onClick}
+        aria-label={`Show ${label.toLowerCase()}`}
+        aria-pressed={true}
+        className={sharedClasses}
+        style={{
+          background: "#ffffff",
+          color: palette.activeText,
+          border: `2.5px solid ${palette.border}`,
+          boxShadow: `
+            0 0 22px ${palette.glow},
+            0 0 44px ${palette.glowSoft},
+            0 4px 14px rgba(0,0,0,0.35)
+          `,
+        }}
+      >
+        <LightningIcon color={palette.activeIcon} glowColor={palette.glow} />
+        <span>{label}</span>
+      </button>
+    );
+  }
+
+  // ── IDLE: full color fill, continuous shimmer, strong glow ──
   return (
     <button
       onClick={onClick}
       aria-label={`Show ${label.toLowerCase()}`}
-      aria-pressed={active}
-      className={`shine-sweep relative flex items-center gap-2 rounded-full font-bold tracking-wide transition-all active:scale-95 ${
-        active ? "px-6 py-3 text-base" : "px-5 py-2.5 text-sm"
-      }`}
-      style={
-        active
-          ? {
-              background: palette.gradient,
-              color: palette.textActive,
-              boxShadow: `
-                0 0 0 1.5px rgba(255,255,255,0.35) inset,
-                0 0 24px ${palette.glow},
-                0 0 48px ${palette.glowSoft},
-                0 6px 18px rgba(0,0,0,0.45)
-              `,
-              animation:
-                "premiumPulse 1.8s ease-in-out infinite alternate",
-            }
-          : {
-              background: "rgba(0, 0, 0, 0.5)",
-              color: palette.textInactive,
-              border: `1.5px solid ${palette.accent}80`,
-              boxShadow: `0 0 14px ${palette.glowSoft}, 0 0 0 1px rgba(255,255,255,0.05) inset`,
-            }
-      }
+      aria-pressed={false}
+      className={`${sharedClasses} animate-shimmer`}
+      style={{
+        backgroundImage: palette.shimmerBg,
+        color: palette.idleText,
+        border: `1.5px solid ${palette.border}`,
+        boxShadow: `
+          0 0 0 1.5px rgba(255,255,255,0.35) inset,
+          0 0 22px ${palette.glow},
+          0 0 44px ${palette.glowSoft},
+          0 6px 18px rgba(0,0,0,0.45)
+        `,
+      }}
     >
-      {/* Lightning bolt icon */}
-      <svg
-        width="14"
-        height="16"
-        viewBox="0 0 14 16"
-        fill="none"
-        style={{
-          color: active ? palette.icon : palette.iconInactive,
-          filter: active
-            ? "drop-shadow(0 0 4px rgba(255,255,255,0.4))"
-            : `drop-shadow(0 0 6px ${palette.glow})`,
-          flexShrink: 0,
-        }}
-      >
-        <path
-          d="M8 0 L1.5 9 L6 9 L4 16 L12.5 6 L7.5 6 Z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="0.4"
-          strokeLinejoin="round"
-        />
-      </svg>
-
+      <LightningIcon color={palette.idleIcon} />
       <span style={{ position: "relative", zIndex: 1 }}>{label}</span>
     </button>
+  );
+}
+
+function LightningIcon({
+  color,
+  glowColor,
+}: {
+  color: string;
+  glowColor?: string;
+}) {
+  return (
+    <svg
+      width="14"
+      height="16"
+      viewBox="0 0 14 16"
+      fill="none"
+      style={{
+        color,
+        filter: glowColor
+          ? `drop-shadow(0 0 6px ${glowColor})`
+          : "drop-shadow(0 0 3px rgba(255,255,255,0.35))",
+        flexShrink: 0,
+      }}
+    >
+      <path
+        d="M8 0 L1.5 9 L6 9 L4 16 L12.5 6 L7.5 6 Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="0.4"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
