@@ -29,104 +29,101 @@ export default function PersonaHeader({ persona, sidebarBadge, onSidebarOpen, on
 
   return (
     <header
-      className="relative flex-shrink-0 border-b border-purple-500/10 px-3 py-3 safe-top z-30"
+      className="flex-shrink-0 border-b border-purple-500/10 px-3 py-3 safe-top z-30"
       style={{
         background: "linear-gradient(180deg, rgba(30, 15, 55, 0.98) 0%, rgba(22, 10, 42, 0.95) 100%)",
         backdropFilter: "blur(20px)",
       }}
     >
-      {/* Left edge — back / lock button */}
-      <button
-        onClick={onBack}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors z-10"
-        aria-label="Back"
+      {/* 1fr / auto / 1fr — equal-width side columns guarantee the
+          centered profile sits dead-center regardless of which side
+          has more controls. */}
+      <div
+        className="grid items-center gap-3"
+        style={{ gridTemplateColumns: "1fr auto 1fr" }}
       >
-        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0110 0v4" />
-        </svg>
-      </button>
+        {/* LEFT: back / lock — kept symmetric with the right side */}
+        <div className="flex items-center justify-start">
+          <button
+            onClick={onBack}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 transition-all active:scale-95"
+            aria-label="Back"
+          >
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0110 0v4" />
+            </svg>
+          </button>
+        </div>
 
-      {/* Centered profile (avatar + name + mood) */}
-      <div className="flex items-center justify-center gap-3">
-        {/* Avatar — bigger now */}
-        <div className="relative flex-shrink-0">
-          <div className="w-32 h-28 rounded-2xl overflow-hidden ring-2 ring-[#8B5CF6]/50 shadow-lg shadow-purple-900/30">
-            <Image
-              src={avatarUrl}
-              alt={persona.display_name}
-              width={256}
-              height={224}
-              className="w-full h-full object-cover brightness-110 contrast-105 saturate-110"
-              unoptimized
-              priority
-            />
+        {/* CENTER: profile (avatar + name + mood) */}
+        <div className="flex items-center justify-center gap-3">
+          <div className="relative flex-shrink-0">
+            <div className="w-32 h-28 rounded-2xl overflow-hidden ring-2 ring-[#8B5CF6]/50 shadow-lg shadow-purple-900/30">
+              <Image
+                src={avatarUrl}
+                alt={persona.display_name}
+                width={256}
+                height={224}
+                className="w-full h-full object-cover brightness-110 contrast-105 saturate-110"
+                unoptimized
+                priority
+              />
+            </div>
+            <div className="absolute bottom-0.5 left-0.5 w-3.5 h-3.5 bg-[#22C55E] border-2 border-[#0D0D1A] rounded-full" />
           </div>
-          {/* Online dot */}
-          <div className="absolute bottom-0.5 left-0.5 w-3.5 h-3.5 bg-[#22C55E] border-2 border-[#0D0D1A] rounded-full" />
+          <div className="min-w-0">
+            <p className="text-white font-semibold text-base leading-tight">
+              {persona.display_name} ✨
+            </p>
+            <p className="text-white/55 text-xs mt-0.5">Feeling playful</p>
+          </div>
         </div>
 
-        {/* Name + mood */}
-        <div className="min-w-0">
-          <p className="text-white font-semibold text-base leading-tight">
-            {persona.display_name} ✨
-          </p>
-          <p className="text-white/55 text-xs mt-0.5">Feeling playful</p>
-        </div>
-      </div>
-
-      {/* Right edge — tension circle + hamburger */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10">
-        {/* Tension circle badge */}
-        <div className="relative flex-shrink-0 w-9 h-9">
-          <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="3"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r="15"
-              fill="none"
-              stroke="url(#tensionGrad)"
-              strokeWidth="3"
-              strokeDasharray={`${tensionPercentage * 0.9425} 94.25`}
-              strokeLinecap="round"
-            />
-            <defs>
-              <linearGradient id="tensionGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#8B5CF6" />
-                <stop offset="100%" stopColor="#A855F7" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-            {tensionPercentage}%
-          </span>
-        </div>
-
-        {/* Hamburger menu */}
-        <button
-          onClick={onSidebarOpen}
-          className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 transition-all active:scale-95"
-          aria-label="Menu"
-        >
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <line x1="3" y1="6" x2="21" y2="6" strokeLinecap="round" />
-            <line x1="3" y1="12" x2="21" y2="12" strokeLinecap="round" />
-            <line x1="3" y1="18" x2="21" y2="18" strokeLinecap="round" />
-          </svg>
-          {sidebarBadge > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#8B5CF6] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-              {sidebarBadge}
+        {/* RIGHT: tension % + hamburger — equal-width column to the left side */}
+        <div className="flex items-center justify-end gap-1.5">
+          <div className="relative flex-shrink-0 w-9 h-9">
+            <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+              <circle
+                cx="18"
+                cy="18"
+                r="15"
+                fill="none"
+                stroke="url(#tensionGrad)"
+                strokeWidth="3"
+                strokeDasharray={`${tensionPercentage * 0.9425} 94.25`}
+                strokeLinecap="round"
+              />
+              <defs>
+                <linearGradient id="tensionGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#8B5CF6" />
+                  <stop offset="100%" stopColor="#A855F7" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+              {tensionPercentage}%
             </span>
-          )}
-        </button>
+          </div>
+
+          <button
+            onClick={onSidebarOpen}
+            className="relative flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/5 transition-all active:scale-95"
+            aria-label="Menu"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <line x1="3" y1="6" x2="21" y2="6" strokeLinecap="round" />
+              <line x1="3" y1="12" x2="21" y2="12" strokeLinecap="round" />
+              <line x1="3" y1="18" x2="21" y2="18" strokeLinecap="round" />
+            </svg>
+            {sidebarBadge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#8B5CF6] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {sidebarBadge}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </header>
   );
