@@ -12,7 +12,6 @@ import RelationshipMeter, { type RelationshipSnapshot } from "./RelationshipMete
 import LevelRewardModal, { type DeliveredReward } from "./LevelRewardModal";
 import SurpriseGestureToast, { type SurpriseGesturePayload } from "./SurpriseGestureToast";
 import MediaShelf from "./MediaShelf";
-import MomentRevealModal from "./MomentRevealModal";
 import MomentsSidebar from "@/components/moments/MomentsSidebar";
 import ContinuationPopup from "@/components/continuation/ContinuationPopup";
 import CustomRequestCard from "./CustomRequestCard";
@@ -98,8 +97,6 @@ export default function ChatShell({
     locked: !m.unlocked,
   }));
   const [sidebarMoments, setSidebarMoments] = useState<Moment[]>([]);
-  const [revealedMoment, setRevealedMoment] = useState<Moment | null>(null);
-  const [revealedMomentIds, setRevealedMomentIds] = useState<Set<string>>(new Set());
   const [continuation, setContinuation] = useState<ContinuationData | null>(null);
   const [introSent, setIntroSent] = useState(initialMessages.length > 0);
   const [tension, setTension] = useState<TensionData | null>(null);
@@ -264,24 +261,6 @@ export default function ChatShell({
     }
   }, [loading, conversationId, persona.slug, persona.id, messages.length, tensionExplainerShown, initialMessages.length]);
 
-  // Watch messages and trigger the centered "reveal" modal whenever a new
-  // moment first appears in chat (positions 4, 8, 14 — see MessageList).
-  // The modal auto-dismisses after 5s.
-  useEffect(() => {
-    const positions = [4, 8, 14];
-    const visibleCount = positions.filter((p) => messages.length >= p).length;
-    const visibleMoments = moments.slice(0, visibleCount);
-    const next = visibleMoments.find((m) => !revealedMomentIds.has(m.id));
-    if (next && !revealedMoment) {
-      setRevealedMoment(next);
-      setRevealedMomentIds((prev) => {
-        const s = new Set(prev);
-        s.add(next.id);
-        return s;
-      });
-    }
-  }, [messages.length, moments, revealedMoment, revealedMomentIds]);
-
   const dismissMomentToSidebar = useCallback((momentId: string) => {
     setMoments((prev) => {
       const moment = prev.find((m) => m.id === momentId);
@@ -425,13 +404,6 @@ export default function ChatShell({
       )}
 
       <ChatInput onSend={sendMessage} disabled={loading} />
-
-      {/* Centered moment reveal modal — pops for 5s when girl "sends" a moment */}
-      <MomentRevealModal
-        moment={revealedMoment}
-        personaName={persona.display_name}
-        onDismiss={() => setRevealedMoment(null)}
-      />
 
       {/* Moments sidebar */}
       <MomentsSidebar

@@ -4,104 +4,77 @@ export type PremiumTheme = "gold" | "purple";
 
 interface Props {
   theme: PremiumTheme;
-  /** Optional click handler for the "Reveal Photo / Watch Now" button area. */
+  thumbnailUrl?: string | null;
+  price?: number;
   onCtaClick?: () => void;
-  /** Optional click handler for the small × dismiss button (chat-only). */
   onDismissClick?: () => void;
   busy?: boolean;
-  /** Compact size for in-chat rendering. Default false = modal size. */
   compact?: boolean;
 }
 
 /**
- * Premium "lightning" moment card.
- *
- * Uses /public/moment-cards.png as the visual (one big PNG with 4 cards).
- * Crops to a single card via CSS background-image + background-size +
- * background-position. Bypasses Tailwind's <img> preflight rules, so the
- * sizing is completely under our control.
- *
- * Photos = gold card (top-left of source image).
- * Videos = purple card (bottom-left of source image).
- *
- * Click targets are layered on top for unlock + (chat-only) dismiss.
+ * In-chat moment card. Heavily blurred thumbnail behind a glow border with a
+ * centered REVEAL (photo) / WATCH (video) CTA. Photos = gold, videos = purple.
  */
 export default function PremiumMomentCard({
   theme,
+  thumbnailUrl,
+  price,
   onCtaClick,
   onDismissClick,
   busy,
   compact = false,
 }: Props) {
-  // ── Source image dimensions (measured) ──
-  const SRC_W = 1086;
-  const SRC_H = 1448;
+  const isVideo = theme === "purple";
 
-  // ── Card region within the source image (calibrated by inspection) ──
-  // Pixel coords for the LEFT card on each row.
-  // Adjust these if the crop looks off — they're the only knobs.
-  const CARD_LEFT_PX = 25;       // x of card's left edge (incl. lightning bleed)
-  const CARD_RIGHT_PX = 545;     // x of card's right edge
-  const GOLD_TOP_PX = 200;       // y of gold card's top edge
-  const GOLD_BOTTOM_PX = 730;    // y of gold card's bottom edge
-  const PURPLE_TOP_PX = 870;     // y of purple card's top edge
-  const PURPLE_BOTTOM_PX = 1340; // y of purple card's bottom edge
+  const accent = isVideo
+    ? { border: "#A855F7", glow: "rgba(168, 85, 247, 0.55)", soft: "rgba(168, 85, 247, 0.25)" }
+    : { border: "#F5A524", glow: "rgba(245, 165, 36, 0.55)", soft: "rgba(245, 165, 36, 0.25)" };
 
-  const cardW = CARD_RIGHT_PX - CARD_LEFT_PX;
-  const cardH =
-    theme === "gold"
-      ? GOLD_BOTTOM_PX - GOLD_TOP_PX
-      : PURPLE_BOTTOM_PX - PURPLE_TOP_PX;
-  const cardTop = theme === "gold" ? GOLD_TOP_PX : PURPLE_TOP_PX;
-
-  // ── Display container ──
-  // We pick a display width and let height match the card's natural aspect.
-  const displayWidth = compact ? 260 : 300;
-  const displayHeight = Math.round(displayWidth * (cardH / cardW));
-
-  // ── Background scaling math ──
-  // We want the source `cardW × cardH` region to fill `displayWidth × displayHeight`.
-  // Scale factor:
-  const scale = displayWidth / cardW;
-  // Scaled full image dimensions:
-  const bgWidth = Math.round(SRC_W * scale);
-  const bgHeight = Math.round(SRC_H * scale);
-  // Background offset: shift image up/left so card-region top-left lands at 0,0.
-  const bgPosX = -Math.round(CARD_LEFT_PX * scale);
-  const bgPosY = -Math.round(cardTop * scale);
+  const ctaLabel = isVideo ? "WATCH" : "REVEAL";
+  const width = compact ? 240 : 280;
+  const height = Math.round(width * 1.35);
 
   return (
     <div
-      className="relative overflow-hidden"
+      className="relative rounded-2xl overflow-hidden"
       style={{
-        width: `${displayWidth}px`,
-        height: `${displayHeight}px`,
-        backgroundImage: "url(/moment-cards.png)",
-        backgroundSize: `${bgWidth}px ${bgHeight}px`,
-        backgroundPosition: `${bgPosX}px ${bgPosY}px`,
-        backgroundRepeat: "no-repeat",
+        width: `${width}px`,
+        height: `${height}px`,
+        border: `2px solid ${accent.border}`,
+        boxShadow: `0 0 24px ${accent.glow}, 0 0 60px ${accent.soft}, inset 0 0 24px ${accent.soft}`,
+        background: "#0A0612",
       }}
     >
-      {/* Transparent click target over the unlock button.
-          Approx region within the cropped card: x 6%-94%, y 73%-84% */}
-      {onCtaClick && (
-        <button
-          onClick={onCtaClick}
-          disabled={busy}
-          aria-label="Unlock"
-          className="absolute rounded-full transition-all active:scale-[0.97] disabled:opacity-60"
+      {thumbnailUrl ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center"
           style={{
-            left: "6%",
-            right: "6%",
-            top: "73%",
-            height: "11%",
-            background: "transparent",
-            cursor: busy ? "wait" : "pointer",
+            backgroundImage: `url(${thumbnailUrl})`,
+            filter: "blur(28px) brightness(0.35) saturate(0.9)",
+            transform: "scale(1.15)",
+          }}
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: isVideo
+              ? "radial-gradient(circle at 50% 50%, rgba(168,85,247,0.35), rgba(20,5,40,0.95))"
+              : "radial-gradient(circle at 50% 50%, rgba(245,165,36,0.30), rgba(30,15,5,0.95))",
+            filter: "blur(8px)",
           }}
         />
       )}
 
-      {/* In-chat dismiss button (top-left). Modal version doesn't show this. */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.25) 60%, rgba(0,0,0,0.55) 100%)",
+        }}
+      />
+
       {onDismissClick && (
         <button
           onClick={(e) => {
@@ -109,24 +82,63 @@ export default function PremiumMomentCard({
             onDismissClick();
           }}
           aria-label="Save for later"
-          className="absolute w-7 h-7 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
-          style={{ left: "5%", top: "4%" }}
+          className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
         >
-          <svg
-            width="13"
-            height="13"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            viewBox="0 0 24 24"
-          >
+          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
             <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
           </svg>
         </button>
       )}
 
+      <button
+        onClick={onCtaClick}
+        disabled={busy}
+        aria-label={ctaLabel}
+        className="absolute inset-0 flex flex-col items-center justify-center gap-3 disabled:opacity-60"
+        style={{ cursor: busy ? "wait" : "pointer" }}
+      >
+        <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center"
+          style={{
+            background: `linear-gradient(135deg, ${accent.border} 0%, ${accent.glow} 100%)`,
+            boxShadow: `0 0 24px ${accent.glow}`,
+          }}
+        >
+          {isVideo ? (
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          ) : (
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="12" cy="12" r="3.5" />
+            </svg>
+          )}
+        </div>
+
+        <div
+          className="text-white font-extrabold tracking-[0.2em] text-sm"
+          style={{ textShadow: `0 0 12px ${accent.glow}` }}
+        >
+          {ctaLabel}
+        </div>
+
+        {typeof price === "number" && price > 0 && (
+          <div
+            className="px-3 py-1 rounded-full text-white text-xs font-bold"
+            style={{
+              background: "rgba(0,0,0,0.55)",
+              border: `1px solid ${accent.border}`,
+              boxShadow: `0 0 10px ${accent.soft}`,
+            }}
+          >
+            ${price.toFixed(2)}
+          </div>
+        )}
+      </button>
+
       {busy && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
           <span className="text-white text-sm font-bold">Unlocking…</span>
         </div>
       )}

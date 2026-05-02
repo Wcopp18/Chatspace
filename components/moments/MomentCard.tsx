@@ -72,6 +72,8 @@ export default function MomentCard({
       <PremiumMomentCard
         compact
         theme={theme}
+        thumbnailUrl={moment.thumbnail_url}
+        price={moment.price}
         onCtaClick={handleUnlock}
         onDismissClick={onDismiss}
         busy={unlocking}
