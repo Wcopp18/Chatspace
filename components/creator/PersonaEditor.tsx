@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { Database } from "@/types/database";
+import EmotionalEngineEditor from "./EmotionalEngineEditor";
+import EmotionalEngineSettingsTabs from "./EmotionalEngineSettingsTabs";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type Phrase = Database["public"]["Tables"]["persona_phrase_bank"]["Row"];
@@ -18,7 +20,20 @@ interface Props {
   personaId?: string;
 }
 
-type Tab = "profile" | "phrases" | "moments" | "continuation" | "promotions" | "tension";
+type Tab =
+  | "profile"           // Personality
+  | "emotional"         // Emotional Engine
+  | "trigger"           // Trigger Logic
+  | "moments"           // Moments
+  | "leaving"           // Leaving Logic
+  | "relationship"      // Relationship Dynamics
+  | "memory"            // Memory & Attachment
+  | "ai_style"          // AI Style Controls
+  | "analytics"         // Analytics
+  | "phrases"           // (legacy phrase bank — kept under AI Style umbrella)
+  | "continuation"      // (legacy — kept under Leaving)
+  | "promotions"
+  | "tension";
 
 const PLACEHOLDER_AVATARS: Record<string, string> = {
   luna: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=face",
@@ -77,9 +92,16 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
   const [showPromoEditor, setShowPromoEditor] = useState(false);
 
   const TABS: { id: Tab; label: string; count?: number }[] = [
-    { id: "profile", label: "Profile" },
-    { id: "phrases", label: "Phrases", count: phrases.filter(p => p.is_active).length },
+    { id: "profile", label: "Personality" },
+    { id: "emotional", label: "Emotional Engine" },
+    { id: "trigger", label: "Trigger Logic" },
     { id: "moments", label: "Moments", count: moments.filter(m => m.is_active).length },
+    { id: "leaving", label: "Leaving Logic" },
+    { id: "relationship", label: "Relationship" },
+    { id: "memory", label: "Memory" },
+    { id: "ai_style", label: "AI Style" },
+    { id: "analytics", label: "Analytics" },
+    { id: "phrases", label: "Phrases", count: phrases.filter(p => p.is_active).length },
     { id: "continuation", label: "Continuation", count: prompts.filter(p => p.is_active).length },
     { id: "promotions", label: "Promotions" },
     { id: "tension", label: "Tension Meter" },
@@ -127,10 +149,10 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-[#1E1E30] border border-white/8 rounded-xl p-1">
+      <div className="flex gap-1 bg-[#1E1E30] border border-white/8 rounded-xl p-1 overflow-x-auto no-scrollbar">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${tab === t.id ? "gradient-bg text-white" : "text-white/40 hover:text-white/70"}`}>
+            className={`shrink-0 py-2 px-3 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${tab === t.id ? "gradient-bg text-white" : "text-white/40 hover:text-white/70"}`}>
             {t.label}{t.count !== undefined && <span className={`ml-1 ${tab === t.id ? "text-white/70" : "text-white/25"}`}>{t.count}</span>}
           </button>
         ))}
@@ -170,6 +192,27 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
       )}
       {tab === "tension" && (
         <TensionTipsTab personaId={persona.id} personaName={persona.display_name} />
+      )}
+      {tab === "emotional" && (
+        <EmotionalEngineEditor personaId={persona.id} personaName={persona.display_name} />
+      )}
+      {tab === "trigger" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="trigger" />
+      )}
+      {tab === "leaving" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="leaving" />
+      )}
+      {tab === "relationship" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="relationship" />
+      )}
+      {tab === "memory" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="memory" />
+      )}
+      {tab === "ai_style" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="ai_style" />
+      )}
+      {tab === "analytics" && (
+        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="analytics" />
       )}
     </div>
   );

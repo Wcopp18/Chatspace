@@ -120,3 +120,16 @@ export {
   type AntiGamingDecision,
   type RecentMessage,
 } from "./anti-gaming-engine";
+
+export {
+  evaluateEmotionalTurn,
+  evaluateEmotionalCategory,
+  loadCategoriesForPersona,
+  loadPersonaSettings,
+  loadSignalWeights,
+  loadRecentCategoryFires,
+  buildEmotionalBrief,
+  recordRecentPhrase,
+  logCategoryEvent,
+  DEFAULT_EMOTIONAL_SETTINGS,
+} from "./emotional-engine";

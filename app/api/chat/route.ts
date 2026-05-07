@@ -27,7 +27,10 @@ import {
   scoreMessage,
   buildBehaviorBrief,
   evaluateAntiGaming,
+  evaluateEmotionalTurn,
+  recordRecentPhrase,
 } from "@/lib/engine";
+import type { EmotionalSignals } from "@/types/emotional-engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
 import type { Database } from "@/types/database";
 
@@ -185,6 +188,66 @@ export async function POST(request: NextRequest) {
       });
     } catch (e) { console.error("Behavior brief error:", e); }
 
+    // ── STEP 0c: Evaluate emotional category for this turn ──
+    // Reads configurable categories + per-girl overrides, picks one (if any)
+    // based on current signals, returns a paraphrase brief that's appended
+    // to the AI prompt. Default mode is paraphrase (style references, not
+    // verbatim text). Engine is non-throwing — null brief on any failure.
+    let emotionalBrief = "";
+    let emotionalCategoryKey: string | null = null;
+    let emotionalCategoryId: string | null = null;
+    let emotionalReason = "";
+    try {
+      const preMsgAnalysis = analyzeMessage(message);
+      const preQualityForSignals = scoreMessage(message, []);
+      const currentTension = Number(conversation?.current_tension_score || 0);
+      const sessionStartedAt = conversation?.created_at
+        ? new Date(conversation.created_at).getTime()
+        : Date.now();
+      const localHour = new Date().getHours();
+      const userMsgCount = Math.ceil((conversation?.message_count || 0) / 2);
+      const aiMsgCount = Math.floor((conversation?.message_count || 0) / 2);
+
+      // Detect support/account/payment intent — hard pause for monetization-flavored categories
+      const supportIntent = /\b(refund|cancel\s*subscription|billing|charged|support|account|password)\b/i.test(message);
+      const directRejection = /\b(not interested|don'?t want|stop sending|leave me alone|not buying)\b/i.test(message);
+
+      const signals: EmotionalSignals = {
+        totalMessages: conversation?.message_count || 0,
+        userMessages: userMsgCount,
+        aiMessages: aiMsgCount,
+        backAndForthCount: Math.min(userMsgCount, aiMsgCount),
+        sessionDurationSeconds: Math.max(0, Math.floor((Date.now() - sessionStartedAt) / 1000)),
+        conversationQualityScore: preQualityForSignals.score,
+        emotionalMomentumScore: currentTension,
+        flirtinessScore: Math.round(preMsgAnalysis.flirtIntensity * 100),
+        vulnerabilityScore: Math.round(preMsgAnalysis.emotionalOpenness * 100),
+        trustScore: Math.min(100, (conversation?.message_count || 0) * 2),
+        engagementScore: preQualityForSignals.score,
+        attachmentScore: Math.min(100, (conversation?.session_streak || 0) * 10),
+        timeSinceLastMediaSeconds: 9999,        // unknown here; tension has its own cooldowns
+        timeSinceLastMonetizationSeconds: 9999,
+        hadIgnoredMedia: false,
+        hadDirectRejection: directRejection,
+        isLateNight: localHour >= 22 || localHour < 5,
+        isSubscribed: false,
+      };
+
+      const turn = await evaluateEmotionalTurn({
+        supabase,
+        userId: user.id,
+        personaId: persona.id,
+        conversationId: convId,
+        signals,
+        placement: "place_normal_chat",
+        hardBlock: supportIntent ? { reason: "support_intent" } : null,
+      });
+      emotionalBrief = turn.brief;
+      emotionalCategoryKey = turn.decision.category?.internal_key || null;
+      emotionalCategoryId = turn.decision.category?.id || null;
+      emotionalReason = turn.decision.reason;
+    } catch (e) { console.error("Emotional engine error:", e); }
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -218,9 +281,12 @@ export async function POST(request: NextRequest) {
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
       } else {
-        // Claude fallback with optional memory callback + behavior brief
+        // Claude fallback with optional memory callback + behavior brief + emotional brief
         let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
         if (behaviorBrief) fullPrompt += `\n\n${behaviorBrief}`;
+        if (emotionalBrief) fullPrompt += `\n\n${emotionalBrief}`;
+        // Absolute non-transactional rule (always present)
+        fullPrompt += "\n\nABSOLUTE RULE: Never use transactional words (buy, purchase, sale, deal, pay, checkout, discount, subscribe, upgrade) or reference app features/buttons. Carry only emotion — the UI handles every payment term transparently.";
         try {
           const callbackLine = await selectCallback(supabase, user.id, persona.id, currentMessageCount);
           if (callbackLine) fullPrompt += `\n\n[CALLBACK OPPORTUNITY: Consider naturally weaving in this memory reference: "${callbackLine}"]`;
@@ -236,6 +302,8 @@ export async function POST(request: NextRequest) {
       console.error("Routing engine error, falling back to Claude:", routingError);
       let systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
       if (behaviorBrief) systemPrompt += `\n\n${behaviorBrief}`;
+      if (emotionalBrief) systemPrompt += `\n\n${emotionalBrief}`;
+      systemPrompt += "\n\nABSOLUTE RULE: Never use transactional words (buy, purchase, sale, deal, pay, checkout, discount, subscribe, upgrade) or reference app features/buttons. Carry only emotion — the UI handles every payment term transparently.";
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
     }
@@ -243,6 +311,11 @@ export async function POST(request: NextRequest) {
     // ── STEP 3: Save messages ──
     await supabase.from("messages").insert({ conversation_id: convId, role: "user", content: message });
     await supabase.from("messages").insert({ conversation_id: convId, role: "assistant", content: aiResponse, source: responseSource });
+
+    // Anti-repetition memory for emotional categories (fire & forget)
+    if (emotionalCategoryKey) {
+      recordRecentPhrase(supabase, user.id, persona.id, emotionalCategoryKey, aiResponse).catch(() => {});
+    }
 
     // ── STEP 4: Update tension (v2 — two-layer system, safe) ──
     let tensionResult: { newScore: number; newBand: string; delta: number; previousBand: string; rewardTriggered: boolean; previousScore: number; revealProbability: number; phrase?: { phrase: string | null; type: string | null } | null } = { newScore: 18, newBand: "warming_up", delta: 0, previousBand: "warming_up", rewardTriggered: false, previousScore: 18, revealProbability: 0, phrase: null };
@@ -478,6 +551,11 @@ export async function POST(request: NextRequest) {
       relationship,
       surpriseGesture,
       showCustomRequestCard,
+      emotionalCategory: emotionalCategoryKey ? {
+        id: emotionalCategoryId,
+        key: emotionalCategoryKey,
+        reason: emotionalReason,
+      } : null,
       continuationPrompt: continuationPrompt ? {
         id: continuationPrompt.id, line: continuationPrompt.continuation_line,
         cta: continuationPrompt.popup_cta, price: continuationPrompt.price,
