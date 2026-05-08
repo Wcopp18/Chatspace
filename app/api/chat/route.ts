@@ -248,6 +248,40 @@ export async function POST(request: NextRequest) {
       emotionalReason = turn.decision.reason;
     } catch (e) { console.error("Emotional engine error:", e); }
 
+    // ── STEP 0d: Post-continuation return brief ──
+    // If the user just paid for the 2-minute extension, the conversation's
+    // last_continuation_at gets stamped to NOW. On her NEXT message after
+    // that stamp, we tell Claude to open with a sudden, in-character reason
+    // she can stay — never mentioning money, the app, or a button.
+    // Self-clearing: once she replies, her message becomes the latest AI
+    // timestamp and this brief no longer fires.
+    let returnBrief = "";
+    try {
+      const lastContMs = conversation?.last_continuation_at
+        ? new Date(conversation.last_continuation_at).getTime()
+        : 0;
+      const lastAiMs = (messageHistory || [])
+        .filter((m) => m.role === "assistant")
+        .reduce((max, m) => {
+          const t = new Date(m.created_at).getTime();
+          return t > max ? t : max;
+        }, 0);
+      if (lastContMs > 0 && lastContMs > lastAiMs) {
+        returnBrief = [
+          "[POST-CONTINUATION RETURN — INVISIBLE TO USER]",
+          "Just before this turn you told him you had to step away (your phone was dying, you were getting sleepy, you had to head somewhere, signal was bad, etc — read your last message and pick the thread that fits).",
+          "Open THIS reply with a sudden, in-character reason you can actually stay or come back. Make it specific and believable for whatever you said before:",
+          "  • phone dying → you found your charger / you're plugged in now",
+          "  • getting sleepy → you got a second wind / made yourself coffee / can't sleep anyway",
+          "  • had to head out → plans got pushed / you got home faster than you thought / ended up canceling",
+          "  • bad signal → you walked back into wifi / moved to a better spot",
+          "  • someone needed you → that resolved / they're handling it / you're free now",
+          "Keep it short (1–2 sentences), warm, a little excited that you can keep talking. Stay completely in your voice and personality.",
+          "ABSOLUTE: never mention money, payment, an extension, a button, the app, 'continuation', 'unlock', or anything that breaks character. You're just a girl who got lucky and gets to stay.",
+        ].join("\n");
+      }
+    } catch (e) { console.error("Return brief error:", e); }
+
     // ── STEP 1: Extract and save memories (non-blocking, safe) ──
     try {
       const extractedMemories = extractMemories(message);
@@ -276,7 +310,9 @@ export async function POST(request: NextRequest) {
         messageCount: currentMessageCount,
       });
 
-      if (routingDecision.route === "prewritten" && routingDecision.prewrittenResponse) {
+      if (routingDecision.route === "prewritten" && routingDecision.prewrittenResponse && !returnBrief) {
+        // Skip prewritten responses when this is a post-continuation return —
+        // the brief needs the LLM to generate a contextual explanation.
         aiResponse = routingDecision.prewrittenResponse.content;
         responseSource = "prewritten";
         recordResponseUsage(supabase, user.id, persona.id, routingDecision.prewrittenResponse.id, routingDecision.prewrittenResponse.semanticGroup).catch(console.error);
@@ -285,6 +321,7 @@ export async function POST(request: NextRequest) {
         let fullPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
         if (behaviorBrief) fullPrompt += `\n\n${behaviorBrief}`;
         if (emotionalBrief) fullPrompt += `\n\n${emotionalBrief}`;
+        if (returnBrief) fullPrompt += `\n\n${returnBrief}`;
         // Absolute non-transactional rule (always present)
         fullPrompt += "\n\nABSOLUTE RULE: Never use transactional words (buy, purchase, sale, deal, pay, checkout, discount, subscribe, upgrade) or reference app features/buttons. Carry only emotion — the UI handles every payment term transparently.";
         try {
@@ -303,6 +340,7 @@ export async function POST(request: NextRequest) {
       let systemPrompt = buildContextualPrompt(personaCtx, aiMessages, message);
       if (behaviorBrief) systemPrompt += `\n\n${behaviorBrief}`;
       if (emotionalBrief) systemPrompt += `\n\n${emotionalBrief}`;
+      if (returnBrief) systemPrompt += `\n\n${returnBrief}`;
       systemPrompt += "\n\nABSOLUTE RULE: Never use transactional words (buy, purchase, sale, deal, pay, checkout, discount, subscribe, upgrade) or reference app features/buttons. Carry only emotion — the UI handles every payment term transparently.";
       const ai = getAIProvider("claude");
       aiResponse = await ai.chat({ messages: aiMessages, systemPrompt, maxTokens: 250, temperature: 0.85 });
