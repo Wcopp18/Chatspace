@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypingIndicator";
 import MomentCard from "@/components/moments/MomentCard";
+import BundleCard from "./BundleCard";
 import type { ChatMessage } from "./ChatShell";
 import type { Database } from "@/types/database";
 
@@ -15,8 +16,10 @@ interface Props {
   persona: Persona;
   isLoading: boolean;
   moments: Moment[];
+  conversationId: string | null;
   onDismissMoment: (id: string) => void;
   onUnlockMoment: (id: string) => void;
+  onUnlockBundle: (id: string) => Promise<void>;
 }
 
 // Inject moments contextually between messages
@@ -30,8 +33,10 @@ export default function MessageList({
   persona,
   isLoading,
   moments,
+  conversationId,
   onDismissMoment,
   onUnlockMoment,
+  onUnlockBundle,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -69,18 +74,34 @@ export default function MessageList({
 
         {items.map((item, idx) => {
           if (item.type === "message") {
+            const msg = item.msg;
             return (
-              <MessageBubble
-                key={item.msg.id}
-                message={item.msg}
-                persona={persona}
-                showAvatar={
-                  item.msg.role === "assistant" &&
-                  (idx === 0 ||
-                    items[idx - 1]?.type !== "message" ||
-                    (items[idx - 1] as { type: "message"; msg: ChatMessage }).msg?.role !== "assistant")
-                }
-              />
+              <div key={msg.id}>
+                <MessageBubble
+                  message={msg}
+                  persona={persona}
+                  showAvatar={
+                    msg.role === "assistant" &&
+                    (idx === 0 ||
+                      items[idx - 1]?.type !== "message" ||
+                      (items[idx - 1] as { type: "message"; msg: ChatMessage }).msg?.role !== "assistant")
+                  }
+                />
+                {msg.injectedBundle && !msg.bundleUnlocked && (
+                  <div className="mt-2 mb-1 max-w-[85%]">
+                    <BundleCard
+                      id={msg.injectedBundle.id}
+                      title={msg.injectedBundle.title}
+                      introLine={msg.injectedBundle.introLine}
+                      price={msg.injectedBundle.price}
+                      itemCount={msg.injectedBundle.itemCount}
+                      thumbnailUrl={msg.injectedBundle.thumbnailUrl}
+                      conversationId={conversationId}
+                      onUnlock={onUnlockBundle}
+                    />
+                  </div>
+                )}
+              </div>
             );
           }
           return (

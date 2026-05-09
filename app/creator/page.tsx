@@ -34,7 +34,15 @@ export default async function CreatorDashboard() {
           <h1 className="text-2xl font-bold text-white">Girls</h1>
           <p className="text-white/40 text-sm mt-1">Manage personas, moments, and pricing</p>
         </div>
-        <AddGirlButton />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/creator/customs"
+            className="text-xs text-white/60 hover:text-white border border-white/15 hover:border-white/30 rounded-lg px-3 py-1.5 transition-colors"
+          >
+            Customs queue →
+          </Link>
+          <AddGirlButton />
+        </div>
       </div>
 
       <div className="grid gap-4">

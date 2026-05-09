@@ -6,6 +6,9 @@ import Image from "next/image";
 import type { Database } from "@/types/database";
 import EmotionalEngineEditor from "./EmotionalEngineEditor";
 import EmotionalEngineSettingsTabs from "./EmotionalEngineSettingsTabs";
+import BundlesEditor from "./BundlesEditor";
+import StreakRewardsEditor from "./StreakRewardsEditor";
+import ReengagementEditor from "./ReengagementEditor";
 
 type Persona = Database["public"]["Tables"]["personas"]["Row"];
 type Phrase = Database["public"]["Tables"]["persona_phrase_bank"]["Row"];
@@ -176,7 +179,13 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
         />
       )}
       {tab === "phrases" && <PhrasesTab phrases={phrases} setPhrases={setPhrases} personaId={persona.id} />}
-      {tab === "moments" && <MomentsTab moments={moments} setMoments={setMoments} personaId={persona.id} />}
+      {tab === "moments" && (
+        <MomentsTabWithExtras
+          moments={moments}
+          setMoments={setMoments}
+          personaId={persona.id}
+        />
+      )}
       {tab === "continuation" && <ContinuationTab prompts={prompts} setPrompts={setPrompts} personaId={persona.id} personaName={persona.display_name} />}
       {tab === "promotions" && (
         <PromotionsTab
@@ -206,7 +215,12 @@ export default function PersonaEditor({ persona, phrases: initialPhrases, moment
         <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="relationship" />
       )}
       {tab === "memory" && (
-        <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="memory" />
+        <div className="space-y-8">
+          <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="memory" />
+          <div className="border-t border-white/5 pt-6">
+            <ReengagementEditor personaId={persona.id} personaName={persona.display_name} />
+          </div>
+        </div>
       )}
       {tab === "ai_style" && (
         <EmotionalEngineSettingsTabs personaId={persona.id} personaName={persona.display_name} tab="ai_style" />
@@ -1010,6 +1024,37 @@ function TensionTipsTab({ personaId, personaName }: { personaId: string; persona
       >
         {saving ? "Saving..." : saved ? "Saved!" : "Save Tension Tips"}
       </button>
+    </div>
+  );
+}
+
+
+// ── Moments tab with Bundles + Streak Rewards sub-tabs ────────────────────
+function MomentsTabWithExtras({ moments, setMoments, personaId }: { moments: Moment[]; setMoments: (m: Moment[]) => void; personaId: string }) {
+  const [sub, setSub] = useState<"moments" | "bundles" | "streak">("moments");
+  const SUB: { id: typeof sub; label: string }[] = [
+    { id: "moments", label: "Moments" },
+    { id: "bundles", label: "Bundles" },
+    { id: "streak", label: "Streak Rewards" },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 bg-[#252538] rounded-xl p-1 border border-white/5">
+        {SUB.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setSub(s.id)}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+              sub === s.id ? "gradient-bg text-white" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {sub === "moments" && <MomentsTab moments={moments} setMoments={setMoments} personaId={personaId} />}
+      {sub === "bundles" && <BundlesEditor personaId={personaId} moments={moments.filter(m => m.is_active).map(m => ({ id: m.id, title: m.title, thumbnail_url: m.thumbnail_url, media_type: m.media_type, price: Number(m.price) }))} />}
+      {sub === "streak" && <StreakRewardsEditor personaId={personaId} />}
     </div>
   );
 }

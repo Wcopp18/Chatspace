@@ -29,6 +29,9 @@ import {
   evaluateAntiGaming,
   evaluateEmotionalTurn,
   recordRecentPhrase,
+  selectBundleForInjection,
+  hasRecentPositiveUnlock,
+  maybeDeliverStreakReward,
 } from "@/lib/engine";
 import type { EmotionalSignals } from "@/types/emotional-engine";
 import type { PersonaContext, AIMessage } from "@/lib/ai/types";
@@ -466,6 +469,39 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) { console.error("Moment injection error:", e); }
 
+    // ── STEP 5a-bundle: Bundle injection (multi-photo set) ──
+    // Fires when the user has unlocked something recently AND the
+    // OH_WAIT_THERES_MORE category is in scope. Surfaces the BundleCard.
+    let injectedBundle: {
+      id: string; title: string; introLine: string; introMode: string;
+      price: number; itemCount: number; rarityTier: string; thumbnailUrl: string | null;
+    } | null = null;
+    try {
+      if (emotionalCategoryKey === "OH_WAIT_THERES_MORE" || tensionResult.rewardTriggered) {
+        const recentUnlock = await hasRecentPositiveUnlock(supabase, user.id, persona.id, 30);
+        if (recentUnlock) {
+          const bundle = await selectBundleForInjection({
+            supabase,
+            userId: user.id,
+            personaId: persona.id,
+            conversationMessageCount: conversation?.message_count || 0,
+            emotionalMomentumScore: Number(conversation?.current_tension_score || 0),
+            hasRecentPositiveUnlock: true,
+          });
+          if (bundle) injectedBundle = bundle;
+        }
+      }
+    } catch (e) { console.error("Bundle injection error:", e); }
+
+    // ── STEP 5a-streak: Streak reward delivery (free moment at milestones) ──
+    let streakReward: Awaited<ReturnType<typeof maybeDeliverStreakReward>> | null = null;
+    try {
+      const streakDays = Number(conversation?.session_streak || 0);
+      if (streakDays >= 1) {
+        streakReward = await maybeDeliverStreakReward(supabase, user.id, persona.id, streakDays);
+      }
+    } catch (e) { console.error("Streak reward error:", e); }
+
     // ── STEP 5a: Surprise gesture evaluation (free, spontaneous, safe) ──
     let surpriseGesture: {
       id: string;
@@ -586,6 +622,8 @@ export async function POST(request: NextRequest) {
         phrase: tensionResult.phrase,
       },
       injectedMoment,
+      injectedBundle,
+      streakReward,
       relationship,
       surpriseGesture,
       showCustomRequestCard,

@@ -48,12 +48,25 @@ interface InjectedMoment {
   rarityTier: string;
 }
 
+export interface InjectedBundle {
+  id: string;
+  title: string;
+  introLine: string;
+  introMode: string;
+  price: number;
+  itemCount: number;
+  rarityTier: string;
+  thumbnailUrl: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
   injectedMoment?: InjectedMoment;
+  injectedBundle?: InjectedBundle;
+  bundleUnlocked?: boolean;
 }
 
 interface Props {
@@ -183,8 +196,52 @@ export default function ChatShell({
           content: data.message,
           createdAt: new Date().toISOString(),
           injectedMoment: data.injectedMoment || undefined,
+          injectedBundle: data.injectedBundle || undefined,
         };
         setMessages((prev) => [...prev, aiMsg]);
+
+        // Streak reward — append the free moment with the configured intro line
+        if (data.streakReward && data.streakReward.momentId) {
+          const sr = data.streakReward;
+          const streakMsg: ChatMessage = {
+            id: `streak-${Date.now()}`,
+            role: "assistant",
+            content: sr.introLine || "I've been wanting to send you this 💜",
+            createdAt: new Date(Date.now() + 50).toISOString(),
+          };
+          setMessages((prev) => [...prev, streakMsg]);
+          // Add the moment as already-unlocked
+          setMoments((prev) => [
+            ...prev,
+            {
+              id: sr.momentId,
+              persona_id: persona.id,
+              title: sr.momentTitle || "free for you",
+              tease_copy: sr.introLine || "",
+              media_type: sr.momentMediaType || "image",
+              media_url: sr.momentMediaUrl || null,
+              thumbnail_url: sr.momentThumbnailUrl,
+              price: 0,
+              expires_at: null,
+              lock_state: "unlocked",
+              auto_move_to_sidebar: true,
+              sidebar_delay_minutes: 60,
+              is_active: true,
+              sort_order: 0,
+              tags: ["streak"],
+              rarity_tier: "free",
+              min_tension_score: 0,
+              mood_tags: [],
+              story_arc_id: null,
+              vault_event_id: null,
+              is_custom_delivery: false,
+              delivered_count: 1,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              unlocked: true,
+            } as Moment,
+          ]);
+        }
 
         // Update relationship meter
         if (data.relationship) {
@@ -289,6 +346,81 @@ export default function ChatShell({
       return prev.filter((m) => m.id !== momentId);
     });
   }, []);
+
+  const unlockBundle = useCallback(async (bundleId: string) => {
+    if (!conversationId) return;
+    try {
+      const res = await fetch("/api/bundles/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundleId, conversationId }),
+      });
+      const data = await res.json();
+      if (!data?.success) return;
+
+      // Mark bundle card as unlocked in chat
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.injectedBundle?.id === bundleId ? { ...m, bundleUnlocked: true } : m,
+        ),
+      );
+
+      // Drip each item as its own assistant message
+      const items = (data.items || []) as Array<{
+        sort_order: number;
+        drip_message: string | null;
+        moments: { id: string; title: string; media_type: string; media_url: string | null; thumbnail_url: string | null } | null;
+      }>;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (!it.moments) continue;
+        const m = it.moments;
+        // Stagger the drip over ~6 seconds total
+        await new Promise((r) => setTimeout(r, i === 0 ? 0 : 1200));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `bundle-item-${m.id}-${Date.now()}`,
+            role: "assistant",
+            content: it.drip_message || "",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        setMoments((prev) => [
+          ...prev,
+          {
+            id: m.id,
+            persona_id: persona.id,
+            title: m.title,
+            tease_copy: it.drip_message || "",
+            media_type: m.media_type,
+            media_url: m.media_url,
+            thumbnail_url: m.thumbnail_url,
+            price: 0,
+            expires_at: null,
+            lock_state: "unlocked",
+            auto_move_to_sidebar: true,
+            sidebar_delay_minutes: 60,
+            is_active: true,
+            sort_order: 0,
+            tags: ["bundle"],
+            rarity_tier: "bundle",
+            min_tension_score: 0,
+            mood_tags: [],
+            story_arc_id: null,
+            vault_event_id: null,
+            is_custom_delivery: false,
+            delivered_count: 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            unlocked: true,
+          } as Moment,
+        ]);
+      }
+    } catch (e) {
+      console.error("Bundle unlock error:", e);
+    }
+  }, [conversationId, persona.id]);
 
   const unlockMoment = useCallback(async (momentId: string) => {
     try {
@@ -405,8 +537,10 @@ export default function ChatShell({
         persona={persona}
         isLoading={loading}
         moments={moments}
+        conversationId={conversationId}
         onDismissMoment={dismissMomentToSidebar}
         onUnlockMoment={unlockMoment}
+        onUnlockBundle={unlockBundle}
       />
 
       {/* Input */}

@@ -133,3 +133,24 @@ export {
   logCategoryEvent,
   DEFAULT_EMOTIONAL_SETTINGS,
 } from "./emotional-engine";
+
+export {
+  selectBundleForInjection,
+  hasRecentPositiveUnlock,
+  type BundleSelection,
+} from "./bundle-engine";
+
+export {
+  maybeDeliverStreakReward,
+  type StreakDelivery,
+} from "./streak-engine";
+
+export {
+  generateReengagementForUser,
+  insertReengagementEvent,
+  loadReengagementSettings,
+  withinReengagementCaps,
+  findEligibleSilentUsers,
+  type ReengagementSettings,
+  type ReengagementResult,
+} from "./reengagement-engine";
