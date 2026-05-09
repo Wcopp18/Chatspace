@@ -314,23 +314,30 @@ export default function ChatShell({
   const handleContinuationAccept = useCallback(async () => {
     if (!continuation || !conversationId) return;
     try {
-      await fetch("/api/continuation/unlock", {
+      const res = await fetch("/api/continuation/unlock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, promptId: continuation.id }),
+        body: JSON.stringify({
+          conversationId,
+          promptId: continuation.id,
+          personaSlug: persona.slug,
+          leavingLine: continuation.line,
+        }),
       });
+      const data = await res.json().catch(() => ({}));
       setContinuation(null);
+      const followUp = (data?.resolutionMessage as string | null) || null;
       const contMsg: ChatMessage = {
         id: `cont-${Date.now()}`,
         role: "assistant",
-        content: continuation.line,
+        content: followUp || "okay, I'm back 💜",
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, contMsg]);
     } catch (err) {
       console.error("Continuation error:", err);
     }
-  }, [continuation, conversationId]);
+  }, [continuation, conversationId, persona.slug]);
 
   const sidebarBadgeCount = sidebarMoments.filter((m) => !m.unlocked).length;
 
